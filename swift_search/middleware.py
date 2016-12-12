@@ -54,9 +54,9 @@ class SwiftSearchMiddleware(object):
         return resp
 
 
-def swiftsearch_factory(global_conf, **local_conf):
+def search_factory(global_conf, **local_conf):
     conf = global_conf.copy()
     conf.update(local_conf)
-    def swiftsearch_filter(app, conf):
+    def search_filter(app, conf):
         return SwiftSearchMiddleware(app)
-    return swiftsearch_filter
+    return search_filter

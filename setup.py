@@ -21,7 +21,7 @@ version = "__VERSION__"
 setup(
     name="swift_search",
     version=version,
-    description='Swift Search middleware',
+    description='Swift Search Middleware',
     license='Apache License (2.0)',
     author='Storm Team Globo.com',
     author_email='storm@corp.globo.com',
@@ -37,8 +37,8 @@ setup(
     # "python-swift" package, which SwiftStack doesn't use.  So commenting this
     # out so SwiftStack can still use ${python:Depends}
     #install_requires=["swift"],
-    test_suite='nose.collector',
-    tests_require=["nose"],
+    #test_suite='nose.collector',
+    #tests_require=["nose"],
     scripts=[],
     entry_points={
-        'paste.filter_factory': ['search=swift_search:filter_factory']})
+        'paste.filter_factory': ['swift_search=swift_search:search_factory']})

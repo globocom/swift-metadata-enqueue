@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift_search.middleware import filter_factory  # noqa
+from swift_search.middleware import search_factory  # noqa
