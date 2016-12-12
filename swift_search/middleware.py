@@ -38,16 +38,7 @@ class SwiftSearchMiddleware(object):
 
         if (req.method == 'PUT' or req.method == 'POST' or req.method == 'DELETE'):
                 # container_info = get_container_info(req.environ, self.app)
-                # create a POST request with obj url
-                with Timeout(20):
-                    try:
-                        urllib2.urlopen(QUEUE_URL, data=object_url).read()
-                    except (Exception, Timeout):
-                        self.logger.exception(
-                            'failed POST to queue %s' % webhook)
-                    else:
-                        self.logger.info(
-                            'successfully called queue %s' % webhook
+                # PUT ON QUEUE
 
         resp = req.get_response(self.app)
         return resp
