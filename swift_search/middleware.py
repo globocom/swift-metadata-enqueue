@@ -24,7 +24,7 @@ if six.PY3:
 else:
     from eventlet.green import urllib2
 
-QUEUE_URL = "localhost:2609"
+QUEUE_URL = "localhost:5672"
 
 
 class SwiftSearchMiddleware(object):
