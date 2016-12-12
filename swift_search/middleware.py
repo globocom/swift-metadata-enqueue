@@ -38,7 +38,7 @@ class SwiftSearchMiddleware(object):
         object_url = req.path_info
 
         if (req.method == 'PUT' or req.method == 'POST' or req.method == 'DELETE'):
-            # container_info = get_container_info(req.environ, self.app)
+                # container_info = get_container_info(req.environ, self.app)
                 # create a POST request with obj url
                 with Timeout(20):
                     try:
