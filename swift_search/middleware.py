@@ -17,7 +17,7 @@ from swift.common.swob import wsgify
 from swift.common.utils import get_logger
 from swift.proxy.controllers.base import get_container_info
 
-from eventlet import Timeout
+# from eventlet import Timeout
 import six
 if six.PY3:
     from eventlet.green.urllib import request as urllib2
@@ -38,15 +38,14 @@ class SwiftSearchMiddleware(object):
 
         if (req.method == 'PUT' or req.method == 'POST' or req.method == 'DELETE'):
                 # container_info = get_container_info(req.environ, self.app)
-                # PUT ON QUEUE
+                # PUT ON QUEUE OBJECT_URL
 
-        resp = req.get_response(self.app)
-        return resp
+        return req.get_response(self.app)
 
 
 def search_factory(global_conf, **local_conf):
     conf = global_conf.copy()
     conf.update(local_conf)
     def search_filter(app, conf):
-        return SwiftSearchMiddleware(app)
+        return SwiftSearchMiddleware(app, conf)
     return search_filter
