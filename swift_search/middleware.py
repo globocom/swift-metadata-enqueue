@@ -81,7 +81,7 @@ class SwiftSearchMiddleware(object):
 
         optin = check_container(req)
 
-        if (optin is not None):
+        if (optin is not None and optin):
             LOG.info('Sending Event.')
             self.emit_event(req)
 
