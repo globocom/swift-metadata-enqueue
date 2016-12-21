@@ -36,9 +36,9 @@ setup(
     # Ubuntu packaging incorrectly detects this as a dependency on the
     # "python-swift" package, which SwiftStack doesn't use.  So commenting this
     # out so SwiftStack can still use ${python:Depends}
-    #install_requires=["swift"],
-    #test_suite='nose.collector',
-    #tests_require=["nose"],
+    # install_requires=["swift"],
+    # test_suite='nose.collector',
+    # tests_require=["nose"],
     scripts=[],
     entry_points={
         'paste.filter_factory': ['swift_search=swift_search:search_factory']})
