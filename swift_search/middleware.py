@@ -71,7 +71,7 @@ class SwiftSearchMiddleware(object):
         self._app = app
         self.conf = conf
 
-        self._notifier = get_publisher()
+        self._notifier = get_notifier()
         self.start_queue()
 
         LOG.setLevel(getattr(logging, conf.get('log_level', 'WARNING')))
@@ -110,10 +110,9 @@ class SwiftSearchMiddleware(object):
 
         # NOTE: If the background thread's send queue fills up, the event will
         #  be discarded
-        #
-        # For backward compatibility we default to False and therefore wait for
-        #  sending to complete. This causes swift proxy to hang if the
-        #  destination is unavailable.
+
+        # For backward compatibility we default to False and wait for sending to complete.
+        # Swift proxy to suspend if the destination is unavailable.
         self.nonblocking_notify = strutils.bool_from_string(
             self.conf.get('nonblocking_notify', False))
 
@@ -128,14 +127,20 @@ class SwiftSearchMiddleware(object):
 
             SwiftSearchMiddleware.threadLock.release()
 
-    def get_publisher(self):
+    def get_notifier(self):
 
+        # default exchange under which topics are scoped
         oslo_messaging.set_transport_defaults(conf.get('control_exchange', 'swift'))
 
+        # The Notifier class is used for sending notification messages over a messaging transport
+        # get transportUrl and virtualhost
+        # specifying publisher_id
+        # drive recommended for use rabbitmq
+        # define routing_key for topic
         return oslo_messaging.Notifier(oslo_messaging.get_transport(cfg.CONF, url=self.conf.get('url')),
                         publisher_id=PUBLISHER_ID,
                         driver=self.conf.get('driver', 'messagingv2'),
-                        topic=self.conf.get('topic', 'indexer'))
+                        topic=self.conf.get('topic', 'notifications.indexer'))
 
     @_log_and_ignore_error
     def emit_event(self, req, outcome='success'):
