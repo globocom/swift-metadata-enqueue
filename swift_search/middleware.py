@@ -34,15 +34,12 @@ from oslo_utils import strutils
 # Queue
 import six
 import six.moves.queue as queue
-# import six.moves.urllib.parse as urlparse
 
 # Threading
 import threading
 
 # Swift
-from swift.common.http import is_success
 from swift.common.swob import wsgify
-from swift.common.utils import split_path
 from swift.proxy.controllers.base import get_container_info
 
 LOG = logging.getLogger(__name__)
