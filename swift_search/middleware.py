@@ -13,7 +13,7 @@ before "proxy-server" and add the following filter in the file:
     # set messaging driver
     driver = messagingv2
     # set topic
-    topic = indexer
+    topic = notifications.index
     # Whether to send events to messaging driver in a background thread
     nonblocking_notify = False
     # Queue size for sending notifications in background thread (0=unlimited).
@@ -85,24 +85,12 @@ class SwiftSearchMiddleware(object):
             LOG.info('Sending Event.')
             self.emit_event(req)
 
-    def check_container(self, req):
-
-        obj = None
-        try:
-            (version, account, container, obj) = \
-                split_path(req.path_info, 4, 4, True)
-        except ValueError:
-            # not an object request
-            pass
-
         response = req.get_response(self.app)
 
-        verb = req.method
-        optin = ""
+    def check_container(self, req):
 
-        if obj and is_success(response.status_int) and (verb == 'PUT' or verb == 'POST' or verb == 'DELETE'):
-            container_info = get_container_info(req.environ, self.app)
-            optin = container_info['meta'].get('index')
+        container_info = get_container_info(req.environ, self.app)
+        optin = container_info['meta'].get('index')
 
         return optin
 
@@ -111,8 +99,7 @@ class SwiftSearchMiddleware(object):
         # NOTE: If the background thread's send queue fills up, the event will
         #  be discarded
 
-        # For backward compatibility we default to False and wait for sending to complete.
-        # Swift proxy to suspend if the destination is unavailable.
+        # Send events for a messaging driver in background thread.
         self.nonblocking_notify = strutils.bool_from_string(
             self.conf.get('nonblocking_notify', False))
 
@@ -133,14 +120,10 @@ class SwiftSearchMiddleware(object):
         oslo_messaging.set_transport_defaults(conf.get('control_exchange', 'swift'))
 
         # The Notifier class is used for sending notification messages over a messaging transport
-        # get transportUrl and virtualhost
-        # specifying publisher_id
-        # drive recommended for use rabbitmq
-        # define routing_key for topic
         return oslo_messaging.Notifier(oslo_messaging.get_transport(cfg.CONF, url=self.conf.get('url')),
                         publisher_id=PUBLISHER_ID,
                         driver=self.conf.get('driver', 'messagingv2'),
-                        topic=self.conf.get('topic', 'notifications.indexer'))
+                        topic=self.conf.get('topic', 'notifications.index'))
 
     @_log_and_ignore_error
     def emit_event(self, req, outcome='success'):
