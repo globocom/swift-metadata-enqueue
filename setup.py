@@ -41,4 +41,4 @@ setup(
     # tests_require=["nose"],
     scripts=[],
     entry_points={
-        'paste.filter_factory': ['swift_search=swift_search:search_factory']})
+        'paste.search_factory': ['swift_search=swift_search.middleware:search_factory']})
