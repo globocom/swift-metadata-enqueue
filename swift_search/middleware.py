@@ -78,8 +78,8 @@ class SwiftSearchMiddleware(object):
 
         optin = check_container(req)
 
-        if (optin is not None and optin):
-            LOG.info('Sending Event.')
+        if (optin is not None and optin and (req.method == "PUT" or req.method == "POST" or req.method == "DELETE")):
+            LOG.info('Sending Event')
             self.emit_event(req)
 
         response = req.get_response(self.app)
@@ -104,10 +104,9 @@ class SwiftSearchMiddleware(object):
         if self.nonblocking_notify and SwiftSearchMiddleware.event_queue is None:
             SwiftSearchMiddleware.threadLock.acquire()
 
-            if SwiftSearchMiddleware.event_queue is None:
-                send_queue_size = int(self.conf.get('send_queue_size', 1000))
-                SwiftSearchMiddleware.event_queue = queue.Queue(send_queue_size)
-                self.start_sender_thread()
+            send_queue_size = int(self.conf.get('send_queue_size', 1000))
+            SwiftSearchMiddleware.event_queue = queue.Queue(send_queue_size)
+            self.start_sender_thread()
 
             SwiftSearchMiddleware.threadLock.release()
 
@@ -125,26 +124,28 @@ class SwiftSearchMiddleware(object):
     @_log_and_ignore_error
     def emit_event(self, req, outcome='success'):
 
-		LOG.info('Emit Event')
-        
+        LOG.info('Emit Event')
+
         event = {
             "message_id": six.text_type(uuid.uuid4()),
             "publisher_id": PUBLISHER_ID,
             "priority": "INFO",
             "event_type": EVENT_TYPE,
             "payload": {
-                "url": req.path_info: {
-                    "verb": req.method,
-                    "timestamp": datetime.datetime.utcnow().isoformat()
-                }
-            }
-        }
+                            "url": req.path_info:
+                            "verb": req.method,
+                            "timestamp": datetime.datetime.utcnow().isoformat(),
+                       }
+             }
 
-        LOG.info('Event Body %s.', event)
+        LOG.info('Event Body %s. ', event)
 
-        LOG.info('self.nonblocking_notify', self.nonblocking_notify)       	
+        LOG.info('self.nonblocking_notify', str(self.nonblocking_notify))
+
         if self.nonblocking_notify:
-        	LOG.info('Putting in queue and start sender thread')
+
+            LOG.info('Putting in queue and start sender thread')
+
             try:
                 SwiftSearchMiddleware.event_queue.put(event, False)
                 if not SwiftSearchMiddleware.event_sender.is_alive():
@@ -155,16 +156,17 @@ class SwiftSearchMiddleware(object):
             except queue.Full:
                 LOG.warning('Send queue FULL: Event %s not added', event.message_id)
         else:
-        	LOG.info('Send direct Notification')        	
             SwiftSearchMiddleware.send_notification(self._notifier, event)
 
     def start_sender_thread(self):
+
         SwiftSearchMiddleware.event_sender = SendEventThread(self._notifier)
         SwiftSearchMiddleware.event_sender.daemon = True
         SwiftSearchMiddleware.event_sender.start()
 
     @staticmethod
     def send_notification(notifier, event):
+        LOG.info('Send direct Notification')
         notifier.info({}, EVENT_TYPE, event.as_dict())
 
 
@@ -183,7 +185,7 @@ class SendEventThread(threading.Thread):
                 SwiftSearchMiddleware.send_notification(self.notifier, event)
                 LOG.debug('Sended %s event.', event.id)
             except BaseException:
-                LOG.exception("Error on send event " + event.id)
+                LOG.exception('Error on send event ' + event.id)
 
 
 def search_factory(global_conf, **local_conf):
@@ -192,4 +194,5 @@ def search_factory(global_conf, **local_conf):
 
     def filter(app):
         return SwiftSearhMiddleware(app, conf)
+
     return filter
