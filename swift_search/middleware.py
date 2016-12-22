@@ -125,6 +125,8 @@ class SwiftSearchMiddleware(object):
     @_log_and_ignore_error
     def emit_event(self, req, outcome='success'):
 
+		LOG.info('Emit Event')
+        
         event = {
             "message_id": six.text_type(uuid.uuid4()),
             "publisher_id": PUBLISHER_ID,
@@ -138,7 +140,11 @@ class SwiftSearchMiddleware(object):
             }
         }
 
+        LOG.info('Event Body %s.', event)
+
+        LOG.info('self.nonblocking_notify', self.nonblocking_notify)       	
         if self.nonblocking_notify:
+        	LOG.info('Putting in queue and start sender thread')
             try:
                 SwiftSearchMiddleware.event_queue.put(event, False)
                 if not SwiftSearchMiddleware.event_sender.is_alive():
@@ -149,6 +155,7 @@ class SwiftSearchMiddleware(object):
             except queue.Full:
                 LOG.warning('Send queue FULL: Event %s not added', event.message_id)
         else:
+        	LOG.info('Send direct Notification')        	
             SwiftSearchMiddleware.send_notification(self._notifier, event)
 
     def start_sender_thread(self):
