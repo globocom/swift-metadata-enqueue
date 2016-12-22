@@ -13,7 +13,7 @@ before "proxy-server" and add the following filter in the file:
     # set messaging driver
     driver = messagingv2
     # set topic
-    topic = notifications.index
+    topic = notifications.indexer
     # Whether to send events to messaging driver in a background thread
     nonblocking_notify = False
     # Queue size for sending notifications in background thread (0=unlimited).
@@ -119,7 +119,7 @@ class SwiftSearchMiddleware(object):
         return oslo_messaging.Notifier(oslo_messaging.get_transport(cfg.CONF, url=self.conf.get('url')),
                         publisher_id=PUBLISHER_ID,
                         driver=self.conf.get('driver', 'messagingv2'),
-                        topic=self.conf.get('topic', 'notifications.index'))
+                        topic=self.conf.get('topic', 'notifications.indexer'))
 
     @_log_and_ignore_error
     def emit_event(self, req, outcome='success'):
