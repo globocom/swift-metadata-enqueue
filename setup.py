@@ -21,5 +21,4 @@ setup(
     entry_points={
         'paste.search_factory': [
             'swift_search=swift_search.middleware:search_factory'
-        ]}
-    )
+        ]})
