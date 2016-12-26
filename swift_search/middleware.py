@@ -14,97 +14,77 @@ before "proxy-server" and add the following filter in the file:
     log_level = INFO
 """
 
-import sys
 import logging
 import datetime
 import threading
-
 import pika
-
-from swift.common.swob import wsgify
-from swift.proxy.controllers.base import get_container_info
+from webob import Request
 
 
 LOG = logging.getLogger(__name__)
 
 
-class SwiftSearchMiddleware(object):
-    """Swift middleware used for process object info for search."""
+class SwiftSearch(object):
+    """Swift middleware to index object info."""
 
-    threadLock = threading.Lock()
+    thread_lock = threading.Lock()
 
     def __init__(self, app, conf):
         self._app = app
         self.conf = conf
-        self.connection = start_queue()
+        self.conn = self.start_queue()
 
         LOG.setLevel(getattr(logging, conf.get('log_level', 'WARNING')))
 
-    @wsgify
-    def __call__(self, req):
-        optin = check_container(req)
+    def __call__(self, environ, start_response):
+        req = Request(environ)
         allowed_methods = ["PUT", "POST", "DELETE"]
 
-        if (optin and req.method in allowed_methods):
-            LOG.info('Starting Queue')
+        if (req.method in allowed_methods):
+            # container_info = get_container_info(req.environ, self._app)
+            # TODO: check if container search is enabled
             self.send_queue(req)
 
-        response = req.get_response(self.app)
+        return self._app(environ, start_response)
 
     def start_queue(self):
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
+        channel = connection.channel()
+        channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
 
-            connection = connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
-
-            channel = connection.channel()
-
-            channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
-
-            return connection
-
-    def check_container(self, req):
-
-        container_info = get_container_info(req.environ, self.app)
-        optin = container_info['meta'].get('index')
-
-        return optin
+        return connection
 
     def send_queue(self, req):
-
-        SwiftSearchMiddleware.threadLock.acquire()
-
-        SwiftSearchMiddleware.event_sender = SendEventThread(self, req)
-        SwiftSearchMiddleware.event_sender.daemon = True
-        SwiftSearchMiddleware.event_sender.start()
-
-        SwiftSearchMiddleware.threadLock.release()
+        SwiftSearch.thread_lock.acquire()
+        SwiftSearch.send_thread = SendThread(self.conn, req)
+        SwiftSearch.send_thread.daemon = True
+        SwiftSearch.send_thread.start()
+        SwiftSearch.thread_lock.release()
 
 
-class SendEventThread(threading.Thread):
+class SendThread(threading.Thread):
 
-    def __init__(self, req):
-
-        super(SendEventThread, self).__init__()
+    def __init__(self, conn, req):
+        super(SendThread, self).__init__()
         self.req = req
+        self.conn = conn
 
     def run(self):
-
         while True:
             try:
-
                 message = {
-                        "url": self.req.path_info:
-                        "verb": self.req.method,
-                        "timestamp": datetime.datetime.utcnow().isoformat(),
+                    "url": self.req.path_info,
+                    "verb": self.req.method,
+                    "timestamp": datetime.datetime.utcnow().isoformat()
                 }
-
-                channel = self.connection.channel()
-
-                channel.basic_publish(exchange='', routing_key=self.conf.get('queue_name'),
-                    body=message, properties=pika.BasicProperties(delivery_mode=2))
-
-                self.connection.close()
+                channel = self.conn.channel()
+                channel.basic_publish(exchange='',
+                                      routing_key=self.conf.get('queue_name'),
+                                      body=message,
+                                      properties=pika.BasicProperties(delivery_mode=2))
+                self.conn.close()
             except BaseException:
-                LOG.exception('Error on send to queue ' + message)
+                LOG.exception('Error on send to queue {}'.format(message))
 
 
 def search_factory(global_conf, **local_conf):
@@ -112,6 +92,6 @@ def search_factory(global_conf, **local_conf):
     conf.update(local_conf)
 
     def filter(app):
-        return SwiftSearhMiddleware(app, conf)
+        return SwiftSearch(app, conf)
 
     return filter
