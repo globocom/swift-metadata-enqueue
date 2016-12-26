@@ -1,64 +1,29 @@
-#
-# Copyright 2012 eNovance <licensing@enovance.com>
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+
+import threading
 import mock
-from oslo_config import cfg
-import six
+import unittest
+
+from swift.common.swob import Request, Response
 
 from swift_search import middleware
 from swift_search.tests import base as tests_base
-import threading
 
 
 class FakeApp(object):
-    def __init__(self, body=None):
-        self.body = body or ['This is a body for Swift Search Middleware.']
 
     def __call__(self, env, start_response):
-        yield
-        start_response('200 OK', [
-            ('Content-Type', 'text/plain'),
-            ('Content-Length', str(sum(map(len, self.body))))
-        ])
-        # while env['wsgi.input'].read(5):
-        #    pass
-        # for line in self.body:
-        #    yield line
+        return Response('Fake Test App')(env, start_response)
 
 
-class FakeRequest(object):
-    """A bare bones request object
-    The middleware will inspect this for request method,
-    wsgi.input and headers.
-    """
+class SwiftSearchTestCase(unittest.TestCase):
 
-    def __init__(self, path, environ=None, headers=None):
-        environ = environ or {}
-        headers = headers or {}
-
-        environ['PATH_INFO'] = path
-
-        if 'wsgi.input' not in environ:
-            environ['wsgi.input'] = six.moves.cStringIO('')
-
-        for header, value in six.iteritems(headers):
-            environ['HTTP_%s' % header.upper()] = value
-        self.environ = environ
+    def test_apply_middleware_on_app(self):
+        app = middleware.SwiftSearchMiddleware(FakeApp)
+        import ipdb; ipdb.set_trace()
 
 
 @mock.patch('oslo_messaging.get_transport', mock.MagicMock())
-class TestSwift(tests_base.TestCase):
+class TestSwift(unittest.TestCase):
 
     def setUp(self):
         super(TestSwift, self).setUp()

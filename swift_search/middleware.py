@@ -13,20 +13,17 @@ before "proxy-server" and add the following filter in the file:
     # Logging level control
     log_level = INFO
 """
-# Utils
-import datetime
-import logging
 
-# Pika
-import pika
 import sys
-
-# Threading
+import logging
+import datetime
 import threading
 
-# Swift
+import pika
+
 from swift.common.swob import wsgify
 from swift.proxy.controllers.base import get_container_info
+
 
 LOG = logging.getLogger(__name__)
 
@@ -37,20 +34,18 @@ class SwiftSearchMiddleware(object):
     threadLock = threading.Lock()
 
     def __init__(self, app, conf):
-
         self._app = app
         self.conf = conf
-
         self.connection = start_queue()
 
         LOG.setLevel(getattr(logging, conf.get('log_level', 'WARNING')))
 
     @wsgify
     def __call__(self, req):
-
         optin = check_container(req)
+        allowed_methods = ["PUT", "POST", "DELETE"]
 
-        if (optin is not None and optin and (req.method == "PUT" or req.method == "POST" or req.method == "DELETE")):
+        if (optin and req.method in allowed_methods):
             LOG.info('Starting Queue')
             self.send_queue(req)
 
