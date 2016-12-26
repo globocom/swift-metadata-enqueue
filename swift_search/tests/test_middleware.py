@@ -3,7 +3,7 @@ import threading
 import unittest
 import mock
 
-from swift_search import middleware
+from swift_search.middleware import *
 
 
 class FakeApp(object):
@@ -15,10 +15,11 @@ class FakeApp(object):
 class SwiftSearchTestCase(unittest.TestCase):
 
     def test_apply_middleware_on_app(self):
-        app = middleware.SwiftSearch(FakeApp, {
+        app = SwiftSearch(FakeApp, {
                 "queue_name": "swiftsearch",
                 "queue_url": "localhost"})
-        pass
+
+        self.assertIsInstance(app, SwiftSearch)
 
 
 # @mock.patch('oslo_messaging.get_transport', mock.MagicMock())
