@@ -17,7 +17,7 @@ class SwiftSearchTestCase(unittest.TestCase):
     def test_apply_middleware_on_app(self):
         app = middleware.SwiftSearch(FakeApp, {
                 "queue_name": "swiftsearch",
-                "queue_url": "localhost:32771",
+                "queue_url": "localhost",
             })
         pass
 
