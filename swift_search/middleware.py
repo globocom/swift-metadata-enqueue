@@ -34,7 +34,6 @@ LOG = logging.getLogger(__name__)
 class SwiftSearchMiddleware(object):
     """Swift middleware used for process object info for search."""
 
-    event_queue = None
     threadLock = threading.Lock()
 
     def __init__(self, app, conf):
