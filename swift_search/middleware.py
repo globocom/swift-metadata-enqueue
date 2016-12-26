@@ -40,7 +40,11 @@ class SwiftSearch(object):
         req = Request(environ)
         allowed_methods = ["PUT", "POST", "DELETE"]
 
+        # import ipdb
+        # ipdb.set_trace()
+
         if (req.method in allowed_methods):
+            print ">>>> In Verbs"
             # container_info = get_container_info(req.environ, self._app)
             # TODO: check if container search is enabled
             self.send_queue(req)

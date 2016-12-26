@@ -1,7 +1,9 @@
 
 import threading
 import unittest
-import mock
+from mock import patch, Mock
+
+from webob import Request, Response
 
 from swift_search.middleware import *
 
@@ -14,13 +16,36 @@ class FakeApp(object):
 
 class SwiftSearchTestCase(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        # Silent log
+        patch('swift_search.middleware.LOG', Mock()).start()
+
+        cls.environ = {'HTTP_HOST': 'localhost',
+                       'PATH_INFO': '/teste',
+                       'REQUEST_METHOD': 'PUT'}
+
+        cls.conf = {"queue_name": "swiftsearch",
+                    "queue_url": "localhost"}
+
+        cls.app = SwiftSearch(FakeApp(), cls.conf)
+
+    @classmethod
+    def tearDownClass(cls):
+        print "Finish"
+
     def test_apply_middleware_on_app(self):
-        app = SwiftSearch(FakeApp, {
-                "queue_name": "swiftsearch",
-                "queue_url": "localhost"})
+        app = self.app
 
         self.assertIsInstance(app, SwiftSearch)
 
+    def test_get_request(self):
+
+        self.environ = {'REQUEST_METHOD': 'GET'}
+
+        resp = Request.blank('/teste', environ=self.environ).get_response(self.app)
+
+        self.assertEqual(resp.body, "Fake Test App")
 
 # @mock.patch('oslo_messaging.get_transport', mock.MagicMock())
 # class TestSwift(unittest.TestCase):

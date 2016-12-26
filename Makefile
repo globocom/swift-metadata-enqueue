@@ -17,4 +17,4 @@ pep8: ## Check source-code for PEP8 compliance
 
 tests: clean pep8 ## Run pep8 and all tests with coverage
 	@echo "Running pep8 and all tests with coverage"
-	@py.test --cov-config .coveragerc --cov $(PROJECT_HOME) --cov-report term-missing
+	@py.test --capture=no --cov-config .coveragerc --cov $(PROJECT_HOME) --cov-report term-missing
