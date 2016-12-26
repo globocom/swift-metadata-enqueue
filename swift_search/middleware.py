@@ -6,34 +6,20 @@ before "proxy-server" and add the following filter in the file:
 .. code-block:: python
     [filter:swift-search]
     paste.filter_factory = swift-search.swiftsearchmiddleware:filter_factory
-    # Set control_exchange to publish to.
-    control_exchange = swift
-    # Set transport url
-    url = rabbit://storm:storm@databases.rjocta012ahobe-126.cp.globoi.com:5672/s3busca
-    # set messaging driver
-    driver = messagingv2
-    # set topic
-    topic = notifications.indexer
-    # Whether to send events to messaging driver in a background thread
-    nonblocking_notify = False
-    # Queue size for sending notifications in background thread (0=unlimited).
-    send_queue_size = 5000
+    # Queue Name.
+    queue_name = swift_search
+    # Queue URL.
+    queue_url = rabbit://storm:storm@databases.rjocta012ahobe-126.cp.globoi.com:5672/s3busca
     # Logging level control
     log_level = INFO
 """
 # Utils
 import datetime
-import functools
 import logging
 
-# Oslo
-from oslo_config import cfg
-import oslo_messaging
-from oslo_utils import strutils
-
-# Queue
-import six
-import six.moves.queue as queue
+# Pika
+import pika
+import sys
 
 # Threading
 import threading
@@ -43,19 +29,6 @@ from swift.common.swob import wsgify
 from swift.proxy.controllers.base import get_container_info
 
 LOG = logging.getLogger(__name__)
-
-PUBLISHER_ID = 'swiftsearchmiddleware'
-EVENT_TYPE = 'storage.index'
-
-
-def _log_and_ignore_error(fn):
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        try:
-            return fn(*args, **kwargs)
-        except Exception as e:
-            LOG.exception('Ocorreu um erro ao processar a chamada : queue %s ', e)
-    return wrapper
 
 
 class SwiftSearchMiddleware(object):
@@ -68,8 +41,7 @@ class SwiftSearchMiddleware(object):
         self._app = app
         self.conf = conf
 
-        self._notifier = get_notifier()
-        self.start_queue()
+        self.connection = start_queue()
 
         LOG.setLevel(getattr(logging, conf.get('log_level', 'WARNING')))
 
@@ -79,10 +51,19 @@ class SwiftSearchMiddleware(object):
         optin = check_container(req)
 
         if (optin is not None and optin and (req.method == "PUT" or req.method == "POST" or req.method == "DELETE")):
-            LOG.info('Sending Event')
-            self.emit_event(req)
+            LOG.info('Starting Queue')
+            self.send_queue(req)
 
         response = req.get_response(self.app)
+
+    def start_queue(self):
+            connection = connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
+
+            channel = connection.channel()
+
+            channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
+
+            return connection
 
     def check_container(self, req):
 
@@ -91,101 +72,42 @@ class SwiftSearchMiddleware(object):
 
         return optin
 
-    def start_queue(self):
+    def send_queue(self, req):
 
-        # NOTE: If the background thread's send queue fills up, the event will
-        #  be discarded
+        SwiftSearchMiddleware.threadLock.acquire()
 
-        # Send events for a messaging driver in background thread.
-        self.nonblocking_notify = strutils.bool_from_string(
-            self.conf.get('nonblocking_notify', False))
-
-        # Initialize the sending queue and thread, SINGLETON
-        if self.nonblocking_notify and SwiftSearchMiddleware.event_queue is None:
-            SwiftSearchMiddleware.threadLock.acquire()
-
-            send_queue_size = int(self.conf.get('send_queue_size', 1000))
-            SwiftSearchMiddleware.event_queue = queue.Queue(send_queue_size)
-            self.start_sender_thread()
-
-            SwiftSearchMiddleware.threadLock.release()
-
-    def get_notifier(self):
-
-        # default exchange under which topics are scoped
-        oslo_messaging.set_transport_defaults(conf.get('control_exchange', 'swift'))
-
-        # The Notifier class is used for sending notification messages over a messaging transport
-        return oslo_messaging.Notifier(oslo_messaging.get_transport(cfg.CONF, url=self.conf.get('url')),
-                        publisher_id=PUBLISHER_ID,
-                        driver=self.conf.get('driver', 'messagingv2'),
-                        topic=self.conf.get('topic', 'notifications.indexer'))
-
-    @_log_and_ignore_error
-    def emit_event(self, req, outcome='success'):
-
-        LOG.info('Emit Event')
-
-        event = {
-            "message_id": six.text_type(uuid.uuid4()),
-            "publisher_id": PUBLISHER_ID,
-            "priority": "INFO",
-            "event_type": EVENT_TYPE,
-            "payload": {
-                            "url": req.path_info:
-                            "verb": req.method,
-                            "timestamp": datetime.datetime.utcnow().isoformat(),
-                       }
-             }
-
-        LOG.info('Event Body %s. ', event)
-
-        LOG.info('self.nonblocking_notify', str(self.nonblocking_notify))
-
-        if self.nonblocking_notify:
-
-            LOG.info('Putting in queue and start sender thread')
-
-            try:
-                SwiftSearchMiddleware.event_queue.put(event, False)
-                if not SwiftSearchMiddleware.event_sender.is_alive():
-                    SwiftSearchMiddleware.threadLock.acquire()
-                    self.start_sender_thread()
-                    SwiftSearchMiddleware.threadLock.release()
-
-            except queue.Full:
-                LOG.warning('Send queue FULL: Event %s not added', event.message_id)
-        else:
-            SwiftSearchMiddleware.send_notification(self._notifier, event)
-
-    def start_sender_thread(self):
-
-        SwiftSearchMiddleware.event_sender = SendEventThread(self._notifier)
+        SwiftSearchMiddleware.event_sender = SendEventThread(self, req)
         SwiftSearchMiddleware.event_sender.daemon = True
         SwiftSearchMiddleware.event_sender.start()
 
-    @staticmethod
-    def send_notification(notifier, event):
-        LOG.info('Send direct Notification')
-        notifier.info({}, EVENT_TYPE, event.as_dict())
+        SwiftSearchMiddleware.threadLock.release()
 
 
 class SendEventThread(threading.Thread):
 
-    def __init__(self, notifier):
+    def __init__(self, req):
         super(SendEventThread, self).__init__()
-        self.notifier = notifier
+        self.req = req
 
     def run(self):
-        """Send events without blocking swift proxy."""
+
         while True:
             try:
-                event = SwiftSearchMiddleware.event_queue.get()
-                LOG.debug('Get event %s processing now ', event.id)
-                SwiftSearchMiddleware.send_notification(self.notifier, event)
-                LOG.debug('Sended %s event.', event.id)
+
+                message = {
+                        "url": self.req.path_info:
+                        "verb": self.req.method,
+                        "timestamp": datetime.datetime.utcnow().isoformat(),
+                }
+
+                channel = self.connection.channel()
+
+                channel.basic_publish(exchange='', routing_key=self.conf.get('queue_name'),
+                    body=message, properties=pika.BasicProperties(delivery_mode=2))
+
+                self.connection.close()
             except BaseException:
-                LOG.exception('Error on send event ' + event.id)
+                LOG.exception('Error on send to queue ' + message)
 
 
 def search_factory(global_conf, **local_conf):
