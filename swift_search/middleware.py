@@ -37,6 +37,7 @@ class SwiftSearchMiddleware(object):
     threadLock = threading.Lock()
 
     def __init__(self, app, conf):
+
         self._app = app
         self.conf = conf
 
@@ -56,6 +57,7 @@ class SwiftSearchMiddleware(object):
         response = req.get_response(self.app)
 
     def start_queue(self):
+
             connection = connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
 
             channel = connection.channel()
@@ -85,6 +87,7 @@ class SwiftSearchMiddleware(object):
 class SendEventThread(threading.Thread):
 
     def __init__(self, req):
+
         super(SendEventThread, self).__init__()
         self.req = req
 
