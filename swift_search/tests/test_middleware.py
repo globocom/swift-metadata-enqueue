@@ -59,7 +59,7 @@ class SwiftSearchTestCase(unittest.TestCase):
         self.assertEqual(resp.body, "Fake Test App")
         self.assertEqual(resp.status_code, 200)
 
-    def test_post_request(self):
+    def test_delete_request(self):
 
         self.environ = {'REQUEST_METHOD': 'DELETE'}
 
@@ -68,7 +68,7 @@ class SwiftSearchTestCase(unittest.TestCase):
         self.assertEqual(resp.body, "Fake Test App")
         self.assertEqual(resp.status_code, 200)
 
-    def test_response_ok(self):
+    def test_get_ok(self):
 
         self.environ = {'REQUEST_METHOD': 'GET'}
 
