@@ -34,7 +34,7 @@ class SwiftSearchTestCase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        print "Done"
+        pass
 
     def test_apply_middleware_on_app(self):
         app = self.app
@@ -43,36 +43,63 @@ class SwiftSearchTestCase(unittest.TestCase):
 
     def test_put_request(self):
 
-        self.environ = {'REQUEST_METHOD': 'PUT'}
-
-        resp = Request.blank('/teste', environ=self.environ).get_response(self.app)
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'PUT'}).get_response(self.app)
 
         self.assertEqual(resp.body, "Fake Test App")
         self.assertEqual(resp.status_code, 200)
 
     def test_post_request(self):
 
-        self.environ = {'REQUEST_METHOD': 'POST'}
-
-        resp = Request.blank('/teste', environ=self.environ).get_response(self.app)
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'POST'}).get_response(self.app)
 
         self.assertEqual(resp.body, "Fake Test App")
         self.assertEqual(resp.status_code, 200)
 
     def test_delete_request(self):
 
-        self.environ = {'REQUEST_METHOD': 'DELETE'}
-
-        resp = Request.blank('/teste', environ=self.environ).get_response(self.app)
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'DELETE'}).get_response(self.app)
 
         self.assertEqual(resp.body, "Fake Test App")
         self.assertEqual(resp.status_code, 200)
 
     def test_get_ok(self):
 
-        self.environ = {'REQUEST_METHOD': 'GET'}
-
-        resp = Request.blank('/teste', environ=self.environ).get_response(self.app)
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'GET'}).get_response(self.app)
 
         self.assertEqual(resp.body, "Fake Test App")
         self.assertEqual(resp.status_code, 200)
+
+    @patch("swift_search.middleware.SwiftSearch.start_queue")
+    def test_start_queue_called(self, mock_queue):
+
+        SwiftSearch(FakeApp(), {"queue_url": "teste", "queue_name": "bla"})
+
+        mock_queue.assert_called()
+
+    @patch("swift_search.middleware.SwiftSearch.send_queue")
+    def test_send_queue_not_called(self, mock_send_queue):
+
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'GET'}).get_response(self.app)
+
+        mock_send_queue.assert_not_called()
+
+    @patch("swift_search.middleware.SwiftSearch.send_queue")
+    def test_request_put_function_send_queue_called(self, mock_send_queue):
+
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'PUT'}).get_response(self.app)
+
+        mock_send_queue.assert_called()
+
+    @patch("swift_search.middleware.SwiftSearch.send_queue")
+    def test_request_post_function_send_queue_called(self, mock_send_queue):
+
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'POST'}).get_response(self.app)
+
+        mock_send_queue.assert_called()
+
+    @patch("swift_search.middleware.SwiftSearch.send_queue")
+    def test_request_delete_function_send_queue_called(self, mock_send_queue):
+
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'DELETE'}).get_response(self.app)
+
+        mock_send_queue.assert_called()

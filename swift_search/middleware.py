@@ -48,9 +48,15 @@ class SwiftSearch(object):
         return self._app(environ, start_response)
 
     def start_queue(self):
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
-        channel = connection.channel()
-        channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
+
+        connection = ""
+
+        try:
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
+            channel = connection.channel()
+            channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
+        except Exception:
+            LOG.exception('Error on start queue')
 
         return connection
 
