@@ -2,6 +2,7 @@
 import threading
 import unittest
 import pika
+import mock
 
 from mock import patch, Mock
 
@@ -20,6 +21,7 @@ class SwiftSearchTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+
         # Silent log
         patch('swift_search.middleware.LOG', Mock()).start()
 
@@ -103,3 +105,24 @@ class SwiftSearchTestCase(unittest.TestCase):
         resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'DELETE'}).get_response(self.app)
 
         mock_send_queue.assert_called()
+
+    def test_get_background(self):
+        queued = threading.Event()
+
+        app = SwiftSearch(FakeApp(), {"queue_url": "teste", "queue_name": "bla"})
+
+        req = Request.blank('/teste', environ={'REQUEST_METHOD': 'PUT'})
+
+        with mock.patch('swift_search.middleware.SwiftSearch.send_queue',
+                         side_effect=lambda *args, **kwargs: queued.set()) as queue:
+
+            queue.mock_add_spec({"url": "/teste", "verb": "PUT", "timestamp": "2016-05-10"}, spec_set=True)
+
+            resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'DELETE'}).get_response(self.app)
+
+            self.assertEqual("Fake Test App", resp.body)
+
+            queued.wait()
+
+            self.assertEqual(1, len(queue.call_args_list))
+            queue.assert_called_once
