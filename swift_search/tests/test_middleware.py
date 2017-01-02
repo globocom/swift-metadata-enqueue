@@ -126,3 +126,12 @@ class SwiftSearchTestCase(unittest.TestCase):
 
             self.assertEqual(1, len(queue.call_args_list))
             queue.assert_called_once
+
+    @patch("swift_search.middleware.SwiftSearch.start_queue")
+    def test_throw_exception_flow(self, mock_queue):
+
+        mock_queue.return_value = None
+
+        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'PUT'}).get_response(self.app)
+
+        self.assertRaises(Exception)
