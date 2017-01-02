@@ -116,7 +116,7 @@ class SwiftSearchTestCase(unittest.TestCase):
         with mock.patch('swift_search.middleware.SwiftSearch.send_queue',
                          side_effect=lambda *args, **kwargs: queued.set()) as queue:
 
-            queue.mock_add_spec({"url": "/teste", "verb": "PUT", "timestamp": "2016-05-10"}, spec_set=True)
+            # queue.mock_add_spec({"url": "/teste", "verb": "PUT", "timestamp": "2016-05-10"}, spec_set=True)
 
             resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'DELETE'}).get_response(self.app)
 
