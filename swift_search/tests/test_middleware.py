@@ -106,32 +106,21 @@ class SwiftSearchTestCase(unittest.TestCase):
 
         mock_send_queue.assert_called()
 
-    def test_get_background(self):
+    def test_get_threading(self):
         queued = threading.Event()
 
-        app = SwiftSearch(FakeApp(), {"queue_url": "teste", "queue_name": "bla"})
-
-        req = Request.blank('/teste', environ={'REQUEST_METHOD': 'PUT'})
-
+        # Call send_queue with side effect with lambda setting a threading.Event flag to true,
+        # for execute immediately.
         with mock.patch('swift_search.middleware.SwiftSearch.send_queue',
                          side_effect=lambda *args, **kwargs: queued.set()) as queue:
 
-            # queue.mock_add_spec({"url": "/teste", "verb": "PUT", "timestamp": "2016-05-10"}, spec_set=True)
-
-            resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'DELETE'}).get_response(self.app)
-
+            resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'PUT'}).get_response(self.app)
             self.assertEqual("Fake Test App", resp.body)
 
-            queued.wait()
+            # queued.wait()
 
+            # Check if queued.set is called in call send_queue function
+            queue.assert_called()
+
+            # Check if queued.set is calling with arguments.
             self.assertEqual(1, len(queue.call_args_list))
-            queue.assert_called_once
-
-    @patch("swift_search.middleware.SwiftSearch.start_queue")
-    def test_throw_exception_flow(self, mock_queue):
-
-        mock_queue.return_value = None
-
-        resp = Request.blank('/teste', environ={'REQUEST_METHOD': 'PUT'}).get_response(self.app)
-
-        self.assertRaises(Exception)

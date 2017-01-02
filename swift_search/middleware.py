@@ -75,9 +75,6 @@ class SendThread(threading.Thread):
         self.req = req
         self.conn = conn
 
-        import ipdb
-        ipdb.set_trace()
-
     def run(self):
         message = ''
         while True:
@@ -93,7 +90,7 @@ class SendThread(threading.Thread):
                                       body=message,
                                       properties=pika.BasicProperties(delivery_mode=2))
                 self.conn.close()
-            except Exception:
+            except BaseException:
                 LOG.exception('Error on send to queue {}'.format(message))
 
 
