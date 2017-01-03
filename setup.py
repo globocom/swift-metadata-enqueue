@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "__VERSION__"
+version = "1.0"
 
 setup(
     name="swift_search",
