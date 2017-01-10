@@ -29,6 +29,7 @@ class SwiftSearch(object):
                 self.send_queue(req)
              else:
                 self.conn = self.start_queue()
+                self.send_queue(req)
 
         return self._app(environ, start_response)
 
