@@ -25,8 +25,6 @@ class SwiftSearch(object):
         allowed_methods = ["PUT", "POST", "DELETE"]
 
         if (req.method in allowed_methods):
-            # container_info = get_container_info(req.environ, self._app)
-            # TODO: check if container search is enabled
             self.send_queue(req)
         
         return self._app(environ, start_response)
@@ -47,9 +45,9 @@ class SwiftSearch(object):
 
             channel = connection.channel()
             channel.queue_declare(queue='swift_search', durable=True)
-        except Exception as e:
+
+        except:
             LOG.info("Error on connect queue")
-            print e
 
         return connection
 
@@ -74,22 +72,20 @@ class SendThread(threading.Thread):
     def run(self):
         LOG.info("SendThread") 
         message = ''
-        while True:
-            try:
-                message = {
-                    "url": self.req.path_info,
-                    "verb": self.req.method,
-                    "timestamp": datetime.datetime.utcnow().isoformat()
-                }
-                channel = self.conn.channel()
-                channel.basic_publish(exchange='',
-                                      routing_key='swift_search',
-                                      body=message,
-                                      properties=pika.BasicProperties(delivery_mode=2))
-                self.conn.close()
-            except BaseException as e:
-                LOG.info("Error on send queue")
-                print e
+        try:
+            message = {
+                "url": self.req.path_info,
+                "verb": self.req.method,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
+            channel = self.conn.channel()
+            channel.basic_publish(exchange='',
+                                    routing_key='swift_search',
+                                    body=message,
+                                    properties=pika.BasicProperties(delivery_mode=2))
+            self.conn.close()
+        except:
+            LOG.info("Error on send queue")
 
 
 def search_factory(global_conf, **local_conf):
