@@ -28,7 +28,8 @@ class SwiftSearch(object):
             # container_info = get_container_info(req.environ, self._app)
             # TODO: check if container search is enabled
             self.send_queue(req)
-            return self._app(environ, start_response)
+        
+        return self._app(environ, start_response)
 
         
 
