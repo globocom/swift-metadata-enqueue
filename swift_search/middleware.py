@@ -25,15 +25,18 @@ class SwiftSearch(object):
         allowed_methods = ["PUT", "POST", "DELETE"]
 
         if (req.method in allowed_methods):
-            self.send_queue(req)
-        
+            if (self.conn is not None):
+                self.send_queue(req)
+             else:
+                self.conn = self.start_queue()
+
         return self._app(environ, start_response)
 
         
 
     def start_queue(self):
 
-        connection = ""
+        connection = None
 
         try:
             credentials = pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))
@@ -43,11 +46,8 @@ class SwiftSearch(object):
                 virtual_host=self.conf.get('queue_vhost'),
                 credentials=credentials))
 
-            channel = connection.channel()
-            channel.queue_declare(queue='swift_search', durable=True)
-
         except:
-            LOG.info("Error on connect queue")
+            LOG.error("Error on connect queue")
 
         return connection
 
@@ -79,13 +79,15 @@ class SendThread(threading.Thread):
                 "timestamp": datetime.datetime.utcnow().isoformat()
             }
             channel = self.conn.channel()
+            channel.queue_declare(queue='swift_search', durable=True)
+
             channel.basic_publish(exchange='',
                                     routing_key='swift_search',
                                     body=message,
                                     properties=pika.BasicProperties(delivery_mode=2))
             self.conn.close()
         except:
-            LOG.info("Error on send queue")
+            LOG.error("Error on send queue")
 
 
 def search_factory(global_conf, **local_conf):
