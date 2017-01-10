@@ -38,9 +38,9 @@ class SwiftSearch(object):
 
         try:
             # connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'), 
-                port=self.conf.get('queue_port'), 
-                virtual_host=self.conf.get('queue_vhost'), 
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
+                port=self.conf.get('queue_port'),
+                virtual_host=self.conf.get('queue_vhost'),
                 credentials=pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))))
             channel = connection.channel()
             channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
