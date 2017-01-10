@@ -4,6 +4,7 @@ import threading
 import pika
 from webob import Request
 
+LOG = logging.getLogger(__name__)
 
 class SwiftSearch(object):
     """Swift middleware to index object info."""
@@ -15,14 +16,14 @@ class SwiftSearch(object):
         self._app = app
         self.conf = conf
         self.conn = self.start_queue()
+        LOG.info("init")
+        LOG.info(LOG)
 
     def __call__(self, environ, start_response):
-        print " init call"
+        LOG.info("call")
         req = Request(environ)
         allowed_methods = ["PUT", "POST", "DELETE"]
 
-        print "req.method in allowed_methods"
-        print req.method in allowed_methods
         if (req.method in allowed_methods):
             # container_info = get_container_info(req.environ, self._app)
             # TODO: check if container search is enabled
@@ -46,7 +47,7 @@ class SwiftSearch(object):
             channel = connection.channel()
             channel.queue_declare(queue='swift_search', durable=True)
         except Exception as e:
-            print 'Error on start queue'
+            LOG.info("Error on connect queue")
             print e
 
         return connection
@@ -70,7 +71,7 @@ class SendThread(threading.Thread):
         self.conn = conn
 
     def run(self):
-        print " SendThread run"
+        LOG.info("SendThread") 
         message = ''
         while True:
             try:
@@ -86,7 +87,7 @@ class SendThread(threading.Thread):
                                       properties=pika.BasicProperties(delivery_mode=2))
                 self.conn.close()
             except BaseException as e:
-                print 'Error on send queue'
+                LOG.info("Error on send queue")
                 print e
 
 
