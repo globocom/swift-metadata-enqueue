@@ -5,9 +5,6 @@ import pika
 from webob import Request
 
 
-LOG = logging.getLogger(__name__)
-
-
 class SwiftSearch(object):
     """Swift middleware to index object info."""
 
@@ -19,37 +16,43 @@ class SwiftSearch(object):
         self.conf = conf
         self.conn = self.start_queue()
 
-        LOG.setLevel(getattr(logging, conf.get('log_level', 'WARNING')))
-
     def __call__(self, environ, start_response):
+        print " init call"
         req = Request(environ)
         allowed_methods = ["PUT", "POST", "DELETE"]
 
+        print "req.method in allowed_methods"
+        print req.method in allowed_methods
         if (req.method in allowed_methods):
             # container_info = get_container_info(req.environ, self._app)
             # TODO: check if container search is enabled
             self.send_queue(req)
+            return self._app(environ, start_response)
 
-        return self._app(environ, start_response)
+        
 
     def start_queue(self):
 
         connection = ""
 
         try:
-            # connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
+            credentials = pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))
+            
             connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
-                port=self.conf.get('queue_port'),
+                port=int(self.conf.get('queue_port')),
                 virtual_host=self.conf.get('queue_vhost'),
-                credentials=pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))))
+                credentials=credentials))
+
             channel = connection.channel()
-            channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
-        except Exception:
-            LOG.exception('Error on start queue')
+            channel.queue_declare(queue='swift_search', durable=True)
+        except Exception as e:
+            print 'Error on start queue'
+            print e
 
         return connection
 
     def send_queue(self, req):
+        print "start send queue"
         # acquire and lock subsequents attempts to acquire until realease
         SwiftSearch.thread_lock.acquire()
         SwiftSearch.send_thread = SendThread(self.conn, req)
@@ -67,6 +70,7 @@ class SendThread(threading.Thread):
         self.conn = conn
 
     def run(self):
+        print " SendThread run"
         message = ''
         while True:
             try:
@@ -77,12 +81,13 @@ class SendThread(threading.Thread):
                 }
                 channel = self.conn.channel()
                 channel.basic_publish(exchange='',
-                                      routing_key=self.conf.get('queue_name'),
+                                      routing_key='swift_search',
                                       body=message,
                                       properties=pika.BasicProperties(delivery_mode=2))
                 self.conn.close()
-            except BaseException:
-                LOG.exception('Error on send to queue {}'.format(message))
+            except BaseException as e:
+                print 'Error on send queue'
+                print e
 
 
 def search_factory(global_conf, **local_conf):
