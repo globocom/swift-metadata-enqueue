@@ -1,21 +1,3 @@
-"""
-Swift Search Middleware for Swift Proxy
-Configuration:
-In /etc/swift/proxy-server.conf on the main pipeline add "swift-search" just
-before "proxy-server" and add the following filter in the file:
-.. code-block:: python
-    [filter:swift-search]
-    paste.filter_factory = swift_search.middleware:search_factory
-    QUEUE_URL = os.getenv('QUEUE_URL', "databases.rjocta012ahobe-126.cp.globoi.com")
-    QUEUE_PORT = os.getenv('QUEUE_PORT', 5672)
-    QUEUE_USERNAME = os.getenv('QUEUE_USERNAME', "storm")
-    QUEUE_PASSWORD = os.getenv('QUEUE_PASSWORD', "storm")
-    QUEUE_NAME = os.getenv('QUEUE_NAME', "swift_search")
-    QUEUE_VHOST = os.getenv('QUEUE_VHOST', "s3busca")
-    # Logging level control
-    log_level = INFO    
-"""
-
 import logging
 import datetime
 import threading
@@ -56,9 +38,12 @@ class SwiftSearch(object):
 
         try:
             # connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url')))
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('QUEUE_URL'), port=self.conf.get('QUEUE_PORT'), virtual_host=self.conf.get('QUEUE_VHOST'),  credentials=pika.PlainCredentials(self.conf.get('QUEUE_USERNAME', self.conf.get('QUEUE_PASSWORD')))
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'), 
+                port=self.conf.get('queue_port'), 
+                virtual_host=self.conf.get('queue_vhost'), 
+                credentials=pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))))
             channel = connection.channel()
-            channel.queue_declare(queue=self.conf.get('QUEUE_NAME'), durable=True)
+            channel.queue_declare(queue=self.conf.get('queue_name'), durable=True)
         except Exception:
             LOG.exception('Error on start queue')
 
@@ -92,7 +77,7 @@ class SendThread(threading.Thread):
                 }
                 channel = self.conn.channel()
                 channel.basic_publish(exchange='',
-                                      routing_key=self.conf.get('QUEUE_NAME'),
+                                      routing_key=self.conf.get('queue_name'),
                                       body=message,
                                       properties=pika.BasicProperties(delivery_mode=2))
                 self.conn.close()
