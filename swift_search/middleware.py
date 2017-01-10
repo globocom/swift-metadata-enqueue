@@ -5,7 +5,7 @@ In /etc/swift/proxy-server.conf on the main pipeline add "swift-search" just
 before "proxy-server" and add the following filter in the file:
 .. code-block:: python
     [filter:swift-search]
-    paste.filter_factory = swift-search.swiftsearchmiddleware:filter_factory
+    paste.filter_factory = swift_search.middleware:search_factory
     QUEUE_URL = os.getenv('QUEUE_URL', "databases.rjocta012ahobe-126.cp.globoi.com")
     QUEUE_PORT = os.getenv('QUEUE_PORT', 5672)
     QUEUE_USERNAME = os.getenv('QUEUE_USERNAME', "storm")
