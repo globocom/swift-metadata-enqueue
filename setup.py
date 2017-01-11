@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.2-thread-simple-rabbit"
+version = "2.3-thread-simple-rabbit"
 
 setup(
     name="swift_search",
@@ -20,5 +20,4 @@ setup(
     scripts=[],
     entry_points={
         'paste.search_factory': [
-            'swift_search=swift_search.middleware:search_factory'
-        ]})
+            'swift_search=swift_search.middleware:search_factory'3        ]})

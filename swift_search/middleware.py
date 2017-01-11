@@ -11,9 +11,6 @@ LOG = logging.getLogger(__name__)
 class SwiftSearch(object):
     """Swift middleware to index object info."""
 
-    # lock until has acquired
-    # thread_lock = threading.Lock()
-
     def __init__(self, app, conf):
         self._app = app
         self.conf = conf
@@ -41,7 +38,7 @@ class SwiftSearch(object):
 
         credentials = pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))
 
-        connection = pika.SelectConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
                                                                            port=int(self.conf.get('queue_port')),
                                                                            virtual_host=self.conf.get('queue_vhost'),
                                                                            credentials=credentials))
