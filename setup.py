@@ -20,4 +20,5 @@ setup(
     scripts=[],
     entry_points={
         'paste.search_factory': [
-            'swift_search=swift_search.middleware:search_factory'3        ]})
+            'swift_search=swift_search.middleware:search_factory'
+        ]})
