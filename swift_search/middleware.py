@@ -2,6 +2,7 @@ import logging
 import datetime
 import threading
 import pika
+import json
 from webob import Request
 
 LOG = logging.getLogger(__name__)
@@ -42,9 +43,9 @@ class SwiftSearch(object):
             credentials = pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))
 
             connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
-                port=int(self.conf.get('queue_port')),
-                virtual_host=self.conf.get('queue_vhost'),
-                credentials=credentials))
+                                                                           port=int(self.conf.get('queue_port')),
+                                                                           virtual_host=self.conf.get('queue_vhost'),
+                                                                           credentials=credentials))
 
         except Exception as e:
             LOG.error("Error on connect queue")
@@ -71,17 +72,22 @@ class SendThread(threading.Thread):
 
     def run(self):
         LOG.info("call Send Thread")
+
         message = ''
         try:
-            message = self.req.path_info + " | " + self.req.method + " | " + datetime.datetime.utcnow().isoformat()
+            message = {
+                "uri": self.req.path_info,
+                "http_method": self.req.method,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
 
             channel = self.conn.channel()
             channel.queue_declare(queue='swift_search', durable=True)
 
             channel.basic_publish(exchange='',
-                                    routing_key='swift_search',
-                                    body=message,
-                                    properties=pika.BasicProperties(delivery_mode=2))
+                                  routing_key='swift_search',
+                                  body=json.dumps(message),
+                                  properties=pika.BasicProperties(delivery_mode=2))
             self.conn.close()
         except Exception as e:
             LOG.error("Error on send to queue")
