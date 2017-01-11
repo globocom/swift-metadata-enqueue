@@ -12,7 +12,7 @@ class SwiftSearch(object):
     """Swift middleware to index object info."""
 
     # lock until has acquired
-    thread_lock = threading.Lock()
+    # thread_lock = threading.Lock()
 
     def __init__(self, app, conf):
         self._app = app
