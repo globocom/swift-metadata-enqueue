@@ -35,21 +35,33 @@ class SwiftSearch(object):
 
         return self._app(environ, start_response)
 
+    def on_open(connection):
+
+        connection.channel(on_channel_open)
+
     def start_queue(self):
 
         connection = None
 
-        try:
-            credentials = pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))
+        credentials = pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))
 
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
+        connection = pika.SelectConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
                                                                            port=int(self.conf.get('queue_port')),
                                                                            virtual_host=self.conf.get('queue_vhost'),
-                                                                           credentials=credentials))
+                                                                           credentials=credentials), on_open_callback=on_open)
+        try:
 
-        except Exception as e:
-            LOG.error("Error on connect queue")
-            LOG.error(e)
+            # Step #2 - Block on the IOLoop
+            connection.ioloop.start()
+
+            # Catch a Keyboard Interrupt to make sure that the connection is closed cleanly
+        except KeyboardInterrupt:
+
+            # Gracefully close the connection
+            connection.close()
+
+            # Start the IOLoop again so Pika can communicate, it will stop on its own when the connection is closed
+            connection.ioloop.start()
 
         return connection
 
@@ -87,7 +99,7 @@ class SendThread(threading.Thread):
             channel.basic_publish(exchange='',
                                   routing_key='swift_search',
                                   body=json.dumps(message),
-                                  properties=pika.BasicProperties(delivery_mode=2))
+                                  properties=pika.BasicProperties(delivery_mode=1))
             self.conn.close()
         except Exception as e:
             LOG.error("Error on send to queue")
