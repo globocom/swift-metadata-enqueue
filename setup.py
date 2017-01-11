@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "1.9"
+version = "2.1-thread-simple-rabbit"
 
 setup(
     name="swift_search",
