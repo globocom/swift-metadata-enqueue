@@ -24,13 +24,19 @@ class SwiftSearchTestCase(unittest.TestCase):
 
         # Silent log
         patch('swift_search.middleware.LOG', Mock()).start()
+        patch('swift_search.middleware.SwiftSearch.start_queue', Mock()).start()
 
         cls.environ = {'HTTP_HOST': 'localhost',
                        'PATH_INFO': '/teste',
                        'REQUEST_METHOD': 'PUT'}
 
         cls.conf = {"queue_name": "swiftsearch",
-                    "queue_url": "localhost"}
+                    "queue_url": "localhost",
+                    "queue_username": "storm",
+                    "queue_password": "storm",
+                    "queue_vhost": "s3busca",
+                    "queue_port": 5672
+                    }
 
         cls.app = SwiftSearch(FakeApp(), cls.conf)
 
