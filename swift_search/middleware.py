@@ -5,7 +5,9 @@ import pika
 import json
 from webob import Request
 
-LOG = logging.getLogger(__name__)
+ALLOWED_METHODS = ["PUT", "POST", "DELETE"]
+
+logger = logging.getLogger(__name__)
 
 
 class SwiftSearch(object):
@@ -14,34 +16,46 @@ class SwiftSearch(object):
     def __init__(self, app, conf):
         self._app = app
         self.conf = conf
-        self.conn = self.start_queue()
-        LOG.info("init Swift middleware to index")
+        self.conn = None
+        logger.info("SwiftSearch middleware initialized...")
 
     def __call__(self, environ, start_response):
-        LOG.info("call swift search middleware")
+        logger.info("call swift search middleware")
 
         req = Request(environ)
-        allowed_methods = ["PUT", "POST", "DELETE"]
 
-        if (req.method in allowed_methods):
-            if (self.conn is not None):
+        if req.method in ALLOWED_METHODS:
+
+            self.conn = self.start_queue()
+
+            if self.conn is not None:
                 self.send_queue(req)
             else:
-                self.conn = self.start_queue()
-                self.send_queue(req)
+                logger.error('')
 
         return self._app(environ, start_response)
 
     def start_queue(self):
 
-        connection = None
+        # Lazy conn
+        if self.conn is not None:
+            return self.conn
 
-        credentials = pika.PlainCredentials(self.conf.get('queue_username'), self.conf.get('queue_password'))
+        credentials = pika.PlainCredentials(self.conf.get('queue_username'),
+                                            self.conf.get('queue_password'))
 
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.conf.get('queue_url'),
-                                                                           port=int(self.conf.get('queue_port')),
-                                                                           virtual_host=self.conf.get('queue_vhost'),
-                                                                           credentials=credentials))
+        params = pika.ConnectionParameters(
+            host=self.conf.get('queue_url'),
+            port=int(self.conf.get('queue_port')),
+            virtual_host=self.conf.get('queue_vhost'),
+            credentials=credentials
+        )
+
+        try:
+            connection = pika.BlockingConnection(params)
+        except pika.exceptions.ConnectionClosed:
+            connection = None
+            logger.error('Fail to connect to RabbitMQ')
 
         return connection
 
@@ -58,7 +72,7 @@ class SendThread(threading.Thread):
         self.conn = conn
 
     def run(self):
-        LOG.info("call Send Thread")
+        logger.info("call Send Thread")
 
         message = ''
         try:
@@ -76,8 +90,8 @@ class SendThread(threading.Thread):
                                   body=json.dumps(message),
                                   properties=pika.BasicProperties(delivery_mode=2))
         except Exception as e:
-            LOG.error("Error on send to queue")
-            LOG.error(e)
+            logger.error("Error on send to queue")
+            logger.error(e)
 
 
 def search_factory(global_conf, **local_conf):
