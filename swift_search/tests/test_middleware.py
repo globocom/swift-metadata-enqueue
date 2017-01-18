@@ -77,13 +77,6 @@ class SwiftSearchTestCase(unittest.TestCase):
         self.assertEqual(resp.body, "Fake Test App")
         self.assertEqual(resp.status_code, 200)
 
-    @patch("swift_search.middleware.SwiftSearch.start_queue")
-    def test_start_queue_called(self, mock_queue):
-
-        SwiftSearch(FakeApp(), {"queue_url": "teste", "queue_name": "bla"})
-
-        mock_queue.assert_called()
-
     @patch("swift_search.middleware.SwiftSearch.send_queue")
     def test_send_queue_not_called(self, mock_send_queue):
 
