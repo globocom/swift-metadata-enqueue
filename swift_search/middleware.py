@@ -232,7 +232,7 @@ class SendThread(threading.Thread):
             self.logger.error(message)
 
 
-def search_factory(global_conf, **local_conf):
+def filter_factory(global_conf, **local_conf):
     """Returns a WSGI filter app for use with paste.deploy."""
     conf = global_conf.copy()
     conf.update(local_conf)

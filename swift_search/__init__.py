@@ -1,1 +1,1 @@
-from swift_search.middleware import search_factory  # noqa
+from swift_search.middleware import filter_factory  # noqa
