@@ -6,6 +6,9 @@ post-indexing in order to enable metadata based search.
 metadata entry to verify if the object is suitable for search index. Nothing
 will be done if ``x-(account|container)-meta-search-enabled`` is not set.
 
+``swift_search`` exports all meta headers (x-object-meta-), content-type and
+content-length headers.
+
 The ``swift_search`` middleware should be added to the pipeline in your
 ``/etc/swift/proxy-server.conf`` file just after any auth middleware.
 For example:
@@ -23,18 +26,18 @@ For example:
 
 To enable the metadata indexing on an account level:
 
-    swift -A http://127.0.0.1:8080/auth/v1.0 -U account:reseller -K secret \
-post -m search-enabled:True
+    swift post -m search-enabled:True
 
 To enable the metadata indexing on an container level:
 
-    swift -A http://127.0.0.1:8080/auth/v1.0 -U account:reseller -K secret \
-post container -m search-enabled:True
+    swift post container -m search-enabled:True
 
 Remove the metadata indexing:
 
-    swift -A http://127.0.0.1:8080/auth/v1.0 -U account:reseller -K secret \
-post -m search-enabled:
+    swift post -m search-enabled:
+
+To create an object with indexable metadata:
+    swift upload <container> <file> -H "x-object-meta-example:content"
 """
 import datetime
 import threading
