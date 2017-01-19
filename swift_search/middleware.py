@@ -42,12 +42,9 @@ import pika
 import json
 
 from swift.common import swob, utils
-from swift.common.request_helpers import get_sys_meta_prefix
 from swift.proxy.controllers.base import get_account_info, get_container_info
 
 META_SEARCH_ENABLED = 'search-enabled'
-META_ACCOUNT = get_sys_meta_prefix('account') + META_SEARCH_ENABLED
-META_CONTAINER = get_sys_meta_prefix('container') + META_SEARCH_ENABLED
 META_OBJECT_PREFIX = 'x-object-meta'
 
 # Object headers allowed to be indexed
@@ -170,14 +167,14 @@ class SwiftSearch(object):
         try:
             connection = pika.BlockingConnection(params)
         except (pika.exceptions.ConnectionClosed, Exception):
-            self.logger.error('Fail to connect to RabbitMQ')
+            self.logger.error('SwiftSearch: Fail to connect to RabbitMQ')
             return None
 
         try:
             channel = connection.channel()
             channel.queue_declare(queue='swift_search', durable=True)
         except (pika.exceptions.ConnectionClosed, Exception):
-            self.logger.exception('Fail to create channel')
+            self.logger.exception('SwiftSearch: Fail to create channel')
             channel = None
 
         return channel
@@ -208,7 +205,6 @@ class SendThread(threading.Thread):
             # We only send allowed headers or ``x-object-meta`` headers
             if key.lower() in ALLOWED_HEADERS or \
                key.lower().startswith(META_OBJECT_PREFIX):
-
                 headers[key] = self.req.headers.get(key)
 
         message = {
@@ -228,11 +224,11 @@ class SendThread(threading.Thread):
             )
 
             if not resp:
-                self.logger.error('Fail to send message to queue')
+                self.logger.error('SwiftSearch: Fail to send message to queue')
                 self.logger.error(message)
 
         except Exception:
-            self.logger.exception('Exception on send to queue')
+            self.logger.exception('SwiftSearch: Exception on send to queue')
             self.logger.error(message)
 
 
