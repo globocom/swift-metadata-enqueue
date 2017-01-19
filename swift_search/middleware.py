@@ -20,7 +20,6 @@ For example:
     queue_url
     queue_port
     queue_vhost
-    queue_conn_timeout
 
 To enable the metadata indexing on an account level:
 
@@ -42,13 +41,17 @@ import threading
 import pika
 import json
 
-from swift.common import get_logger, swob, utils
+from swift.common import swob, utils
 from swift.common.request_helpers import get_sys_meta_prefix
 from swift.proxy.controllers.base import get_account_info, get_container_info
 
-SYSMETA_SEARCH_ENABLED = 'search-enabled'
-SYSMETA_ACCOUNT = get_sys_meta_prefix('account') + SYSMETA_SEARCH_ENABLED
-SYSMETA_CONTAINER = get_sys_meta_prefix('container') + SYSMETA_SEARCH_ENABLED
+META_SEARCH_ENABLED = 'search-enabled'
+META_ACCOUNT = get_sys_meta_prefix('account') + META_SEARCH_ENABLED
+META_CONTAINER = get_sys_meta_prefix('container') + META_SEARCH_ENABLED
+META_OBJECT_PREFIX = 'x-object-meta'
+
+# Object headers allowed to be indexed
+ALLOWED_HEADERS = ['content-type', 'content-length', 'x-project-name']
 
 
 class SwiftSearch(object):
@@ -58,7 +61,7 @@ class SwiftSearch(object):
     """
 
     def __init__(self, app, conf):
-        self.logger = get_logger(conf, log_route='swift-search')
+        self.logger = utils.get_logger(conf, log_route='swift-search')
 
         self.app = app
         self.conf = conf
@@ -69,6 +72,8 @@ class SwiftSearch(object):
         self.logger.debug('SwiftSearch called...')
 
         if not self.is_suitable_for_indexing(req):
+            self.logger.debug(
+                'SwiftSearch: %s not suitable for indexing', req.path_info)
             return self.app
 
         self.queue_channel = self.start_queue_conn()
@@ -76,8 +81,8 @@ class SwiftSearch(object):
         if self.queue_channel is not None:
             self.send_req_to_queue(req)
         else:
-            self.logger.info('No RMQ connection, skiping indexing for: %s' %
-                             req.path_info)
+            self.logger.error('No RMQ connection, skiping indexing for: %s' %
+                              req.path_info)
 
         return self.app
 
@@ -93,24 +98,50 @@ class SwiftSearch(object):
          :returns: True if the request is able to indexing; False otherwise.
         """
         if req.method not in ("PUT", "POST", "DELETE"):
+            self.logger.debug(
+                'SwiftSearch: %s not suitable for indexing: Invalid method',
+                req.path_info
+            )
             return False
 
         try:
             vrs, acc, con, obj = req.split_path(2, 4, rest_with_last=True)
         except ValueError:
+            self.logger.debug(
+                'SwiftSearch: %s not suitable for indexing: Fail to parse url',
+                req.path_info
+            )
             # /info or similar...
             return False
 
         # Check if it's an account request or a container request
         if con is None or obj is None:
+            reason = 'container' if obj is None else 'account'
+            self.logger.debug(
+                'SwiftSearch: %s not suitable for indexing: %s url',
+                req.path_info,
+                reason
+            )
             return False
 
-        sysmeta_c = get_container_info(req.environ, self.app)['sysmeta']
-        sysmeta_a = get_account_info(req.environ, self.app)['sysmeta']
+        sysmeta_c = get_container_info(req.environ, self.app)['meta']
+        sysmeta_a = get_account_info(req.environ, self.app)['meta']
 
-        enabled = sysmeta_c.get(SYSMETA_SEARCH_ENABLED)
+        enabled = sysmeta_c.get(META_SEARCH_ENABLED)
         if enabled is None:
-            enabled = sysmeta_a.get(SYSMETA_SEARCH_ENABLED)
+            enabled = sysmeta_a.get(META_SEARCH_ENABLED)
+
+        self.logger.debug(
+            ('SwiftSearch: %s not suitable for indexing: '
+             'header ``%s`` not found'),
+            req.path_info,
+            META_SEARCH_ENABLED
+        )
+
+        self.logger.debug(
+            'SwiftSearch: Container headers found - {}'.format(sysmeta_c))
+        self.logger.debug(
+            'SwiftSearch: Account headers found - {}'.format(sysmeta_a))
 
         return utils.config_true_value(enabled)
 
@@ -129,12 +160,10 @@ class SwiftSearch(object):
         credentials = pika.PlainCredentials(self.conf.get('queue_username'),
                                             self.conf.get('queue_password'))
 
-        blocked_conn_timeout = int(self.conf.get('queue_conn_timeout', 1))
         params = pika.ConnectionParameters(
             host=self.conf.get('queue_url'),
             port=int(self.conf.get('queue_port')),
             virtual_host=self.conf.get('queue_vhost'),
-            blocked_connection_timeout=blocked_conn_timeout,
             credentials=credentials
         )
 
@@ -154,6 +183,9 @@ class SwiftSearch(object):
         return channel
 
     def send_req_to_queue(self, req):
+        self.logger.info('SwiftSearch starting thread to send %s to queue' %
+                         req.path_info)
+
         SwiftSearch.send_thread = SendThread(self.queue_channel,
                                              req,
                                              self.logger)
@@ -169,12 +201,20 @@ class SendThread(threading.Thread):
         self.logger = logger
 
     def run(self):
-        self.logger.debug('SendThread.run started')
+        self.logger.debug('SwiftSearch: SendThread.run started')
+
+        headers = {}
+        for key in self.req.headers.keys():
+            # We only send allowed headers or ``x-object-meta`` headers
+            if key.lower() in ALLOWED_HEADERS or \
+               key.lower().startswith(META_OBJECT_PREFIX):
+
+                headers[key] = self.req.headers.get(key)
 
         message = {
             'uri': self.req.path_info,
             'http_method': self.req.method,
-            'headers': self.req.headers,
+            'headers': headers,
             'timestamp': datetime.datetime.utcnow().isoformat()
         }
 
