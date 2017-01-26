@@ -4,7 +4,7 @@ from pip.download import PipSession
 from pip.req import parse_requirements
 from setuptools import setup, find_packages
 
-version = "2.3-thread-simple-rabbit"
+version = "0.0.2"
 
 
 def get_path(*p):
@@ -25,6 +25,7 @@ setup(
     url='https://git@github.com:globocom/swift_search.git',
     packages=find_packages(),
     install_requires=reqs,
+    include_package_data=True,
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: Apache Software License',
