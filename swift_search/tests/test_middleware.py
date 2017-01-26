@@ -219,7 +219,7 @@ class SwiftSearchTestCase(MiddlewareTestCase):
 
     @with_req('/v1/a/c', 'PUT')
     def test_put_container_must_not_be_published(self, req):
-        """ Tests a request to a container. Must not publish to queue! """
+        """ Tests a request to a container. Must NOT publish to queue! """
         self.app.responses = [{'status': '200 OK'}]
 
         _, _, _ = self.call_mware(req)
@@ -228,7 +228,7 @@ class SwiftSearchTestCase(MiddlewareTestCase):
 
     @with_req('/v1/a/c', 'POST')
     def test_post_container_must_not_be_published(self, req):
-        """ Tests a request to a container. Must not publish to queue! """
+        """ Tests a request to a container. Must NOT publish to queue! """
         self.app.responses = [{'status': '200 OK'}]
 
         _, _, _ = self.call_mware(req)
@@ -237,7 +237,34 @@ class SwiftSearchTestCase(MiddlewareTestCase):
 
     @with_req('/v1/a/c', 'DELETE')
     def test_delete_container_must_not_be_published(self, req):
-        """ Tests a request to a container. Must not publish to queue! """
+        """ Tests a request to a container. Must NOT publish to queue! """
+        self.app.responses = [{'status': '204 No Content'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a', 'PUT')
+    def test_put_account_must_not_be_published(self, req):
+        """ Tests a request to an account. Must NOT publish to queue! """
+        self.app.responses = [{'status': '200 OK'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a', 'POST')
+    def test_post_account_must_not_be_published(self, req):
+        """ Tests a request to an account. Must NOT publish to queue! """
+        self.app.responses = [{'status': '200 OK'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a', 'DELETE')
+    def test_delete_account_must_not_be_published(self, req):
+        """ Tests a request to an account. Must NOT publish to queue! """
         self.app.responses = [{'status': '204 No Content'}]
 
         _, _, _ = self.call_mware(req)
@@ -268,7 +295,7 @@ class SwiftSearchTestCase(MiddlewareTestCase):
     def test_connection_to_queue_closed_on_publishing(self):
         pass
 
-    def test_failt_to_connect_to_queue_on_publishing(self):
+    def test_fail_to_connect_to_queue_on_publishing(self):
         pass
 
 
