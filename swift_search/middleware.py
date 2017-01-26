@@ -40,7 +40,6 @@ To create an object with indexable metadata:
     swift upload <container> <file> -H "x-object-meta-example:content"
 """
 import datetime
-import threading
 import pika
 import json
 
@@ -55,38 +54,40 @@ ALLOWED_HEADERS = ['content-type', 'content-length', 'x-project-name']
 
 
 def start_queue_conn(conf, logger):
-        """
-        If there's a queue channel started, return it immediately.
-        Otherwise, trys to connect to the queue and create the channel.
+    """
+    If there's a queue channel started, return it immediately.
+    Otherwise, trys to connect to the queue and create the channel.
 
-        :returns: pika.adapters.blocking_connection.BlockingChannel if success;
-                  None otherwise.
-        """
+    :returns: pika.adapters.blocking_connection.BlockingChannel if success;
+              None otherwise.
+    """
 
-        credentials = pika.PlainCredentials(conf.get('queue_username'),
-                                            conf.get('queue_password'))
+    credentials = pika.PlainCredentials(conf.get('queue_username'),
+                                        conf.get('queue_password'))
 
-        params = pika.ConnectionParameters(
-            host=conf.get('queue_url'),
-            port=int(conf.get('queue_port')),
-            virtual_host=conf.get('queue_vhost'),
-            credentials=credentials
-        )
+    params = pika.ConnectionParameters(
+        host=conf.get('queue_url'),
+        port=int(conf.get('queue_port')),
+        virtual_host=conf.get('queue_vhost'),
+        credentials=credentials
+    )
 
-        try:
-            connection = pika.BlockingConnection(params)
-        except (pika.exceptions.ConnectionClosed, Exception):
-            logger.error('SwiftSearch: Fail to connect to RabbitMQ')
-            return None
+    try:
+        connection = pika.BlockingConnection(params)
+        logger.debug('SwiftSearch: Connection Queue connection OK')
+    except (pika.exceptions.ConnectionClosed, Exception):
+        logger.error('SwiftSearch: Fail to connect to RabbitMQ')
+        return None
 
-        try:
-            channel = connection.channel()
-            channel.queue_declare(queue='swift_search', durable=True)
-        except (pika.exceptions.ConnectionClosed, Exception):
-            logger.exception('SwiftSearch: Fail to create channel')
-            channel = None
+    try:
+        channel = connection.channel()
+        channel.queue_declare(queue='swift_search', durable=True)
+        logger.debug('SwiftSearch: Queue Channel OK')
+    except (pika.exceptions.ConnectionClosed, Exception):
+        logger.exception('SwiftSearch: Fail to create channel')
+        channel = None
 
-        return channel
+    return channel
 
 
 class SwiftSearch(object):
@@ -105,6 +106,7 @@ class SwiftSearch(object):
     @swob.wsgify
     def __call__(self, req):
 
+        # If this request is not suitable for indexing, return immediately
         if not self.is_suitable_for_indexing(req):
             return self.app
 
@@ -115,7 +117,8 @@ class SwiftSearch(object):
             self.send_req_to_queue(req)
         else:
             self.logger.error(
-                'SwiftSearch: No RMQ connection, skiping indexing for: %s' %
+                'SwiftSearch: Fail to connect to queue, skiping %s %s' %
+                req.method,
                 req.path_info)
 
         return self.app
@@ -176,41 +179,17 @@ class SwiftSearch(object):
             self.logger.debug(
                 'SwiftSearch: Account headers found - {}'.format(sysmeta_a))
 
+            return False
+
         return True
 
     def send_req_to_queue(self, req):
-        self.logger.info('SwiftSearch: starting thread to send %s to queue' %
-                         req.path_info)
-
-        SwiftSearch.send_thread = SendThread(self.queue,
-                                             req,
-                                             self.logger,
-                                             self.conf)
-        SwiftSearch.send_thread.start()
-
-
-class SendThread(threading.Thread):
-
-    def __init__(self, queue, req, logger, conf):
-        super(SendThread, self).__init__()
-        self.req = req
-        self.queue = queue
-        self.logger = logger
-        self.conf = conf
-
-    def run(self):
-
-        headers = self._filter_headers()
-
-        message = {
-            'uri': self.req.path_info,
-            'http_method': self.req.method,
-            'headers': headers,
-            'timestamp': datetime.datetime.utcnow().isoformat()
-        }
-
-        # self.logger.debug(message)
-
+        """
+        Sends a message to the queue with the proper information.
+        If the fistr try to send fails, try to reconnect to the queue and
+        try to send it again
+        """
+        message = self._mk_message(req)
         result = None
 
         # First try to send to queue
@@ -218,34 +197,45 @@ class SendThread(threading.Thread):
             result = self._publish(message)
 
         except (pika.exceptions.ConnectionClosed, Exception):
-            self.logger.exception('SwiftSearch: Exception on send to queue')
-            self.logger.error(
-                'SwiftSearch: ConnectionClosed to queue. Trying to reconnect')
+            self.logger.exception('SwiftSearch: Exception on sending to queue')
 
             # Second try to send to queue
             self.queue = start_queue_conn(self.conf, self.logger)
             if self.queue:
-                result = self._publish(message)
+                result = self._publish(message)            
 
         if result:
             self.logger.info(
                 'SwiftSearch: %s %s sent to queue',
-                self.req.method, self.req.path_info)
+                req.method, req.path_info)
         else:
             self.logger.error(
                 'SwiftSearch: %s %s failed to send',
-                self.req.method, self.req.path_info)
+                req.method, req.path_info)
 
-    def _filter_headers(self):
+    def _filter_headers(self, req):
         headers = {}
 
-        for key in self.req.headers.keys():
-            # We only send allowed headers or ``x-object-meta`` headers
+        for key in req.headers.keys():
+            # We only send allowed headers and ``x-object-meta`` headers
             if key.lower() in ALLOWED_HEADERS or \
                key.lower().startswith(META_OBJECT_PREFIX):
-                headers[key] = self.req.headers.get(key)
+
+                headers[key] = req.headers.get(key)
 
         return headers
+
+    def _mk_message(self, req):
+        """ 
+        Creates a dictionary with the information that will be send to the
+        queue.
+        """
+        return {
+            'uri': req.path_info,
+            'http_method': req.method,
+            'headers': self._filter_headers(req),
+            'timestamp': datetime.datetime.utcnow().isoformat()
+        }
 
     def _publish(self, message):
         return self.queue.basic_publish(

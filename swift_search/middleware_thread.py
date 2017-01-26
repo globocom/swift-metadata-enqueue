@@ -40,6 +40,7 @@ To create an object with indexable metadata:
     swift upload <container> <file> -H "x-object-meta-example:content"
 """
 import datetime
+import threading
 import pika
 import json
 
@@ -104,7 +105,6 @@ class SwiftSearch(object):
     @swob.wsgify
     def __call__(self, req):
 
-        # Verify if this request is suitable for indexing
         if not self.is_suitable_for_indexing(req):
             return self.app
 
@@ -179,17 +179,32 @@ class SwiftSearch(object):
         return True
 
     def send_req_to_queue(self, req):
-        """
-        Sends a message to the queue with the proper information.
-        If the fistr try to send fails, try to reconnect to the queue and
-        try to send it again
-        """
+        self.logger.info('SwiftSearch: starting thread to send %s to queue' %
+                         req.path_info)
 
-        headers = self._filter_headers(req)
+        SwiftSearch.send_thread = SendThread(self.queue,
+                                             req,
+                                             self.logger,
+                                             self.conf)
+        SwiftSearch.send_thread.start()
+
+
+class SendThread(threading.Thread):
+
+    def __init__(self, queue, req, logger, conf):
+        super(SendThread, self).__init__()
+        self.req = req
+        self.queue = queue
+        self.logger = logger
+        self.conf = conf
+
+    def run(self):
+
+        headers = self._filter_headers()
 
         message = {
-            'uri': req.path_info,
-            'http_method': req.method,
+            'uri': self.req.path_info,
+            'http_method': self.req.method,
             'headers': headers,
             'timestamp': datetime.datetime.utcnow().isoformat()
         }
@@ -210,25 +225,25 @@ class SwiftSearch(object):
             # Second try to send to queue
             self.queue = start_queue_conn(self.conf, self.logger)
             if self.queue:
-                result = self._publish(message)            
+                result = self._publish(message)
 
         if result:
             self.logger.info(
                 'SwiftSearch: %s %s sent to queue',
-                req.method, req.path_info)
+                self.req.method, self.req.path_info)
         else:
             self.logger.error(
                 'SwiftSearch: %s %s failed to send',
-                req.method, req.path_info)
+                self.req.method, self.req.path_info)
 
-    def _filter_headers(self, req):
+    def _filter_headers(self):
         headers = {}
 
-        for key in req.headers.keys():
+        for key in self.req.headers.keys():
             # We only send allowed headers or ``x-object-meta`` headers
             if key.lower() in ALLOWED_HEADERS or \
                key.lower().startswith(META_OBJECT_PREFIX):
-                headers[key] = req.headers.get(key)
+                headers[key] = self.req.headers.get(key)
 
         return headers
 

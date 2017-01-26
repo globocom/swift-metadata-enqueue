@@ -80,7 +80,40 @@ class TestConfigParsing(unittest.TestCase):
         self.assertEqual(search_md.conf.get('queue_vhost'), 'vhost')
 
 
-# class SwiftSearchTestCase(unittest.TestCase):
+class SwiftSearchTestCase(unittest.TestCase):
+
+    def test_invalid_method(self):
+        pass
+
+    def test_invalid_url(self):
+        pass
+
+    def test_optin_header_not_found(self):
+        pass
+
+    def test_filter_headers(self):
+        pass
+
+    def test_mk_message(self):
+        pass
+
+    def test_put_request_indexable(self):
+        pass
+
+    def test_post_request_indexable(self):
+        pass
+
+    def test_delete_request_indexable(self):
+        pass
+
+    def test_fail_to_connect_to_queue(self):
+        pass
+
+    def test_connection_to_queue_closed_on_publishing(self):
+        pass
+
+    def test_failt_to_connect_to_queue_on_publishing(self):
+        pass
 
 #     @classmethod
 #     def setUpClass(cls):
