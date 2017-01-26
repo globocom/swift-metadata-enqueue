@@ -1,13 +1,7 @@
-
-# import threading
 import unittest
-# import pika
-# import mock
 
-# from functools import wraps
-# from mock import patch, Mock
-# from webob import Request, Response
-
+from mock import patch, Mock
+from functools import wraps
 from swift.common import swob
 from swift_search import middleware as md
 
@@ -80,13 +74,175 @@ class TestConfigParsing(unittest.TestCase):
         self.assertEqual(search_md.conf.get('queue_vhost'), 'vhost')
 
 
-class SwiftSearchTestCase(unittest.TestCase):
+def with_req(path, method, headers=None):
+    def decorator(func):
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            req = swob.Request.blank(path)
+            req.method = method
+            if headers:
+                req.headers.update(headers)
+            kwargs['req'] = req
+            return func(*args, **kwargs)
+        return wrapped
+    return decorator
 
-    def test_invalid_method(self):
-        pass
 
-    def test_invalid_url(self):
-        pass
+class MiddlewareTestCase(unittest.TestCase):
+    """
+    Just a base class for other test cases. Some setup, some utility methods.
+    Nothing too exciting.
+    """
+    def setUp(self):
+        self.app = FakeApp()
+        self.search_md = md.filter_factory({})(self.app)
+
+        # Mocking interactions with queue
+        self.start_queue_conn = patch(
+            'swift_search.middleware.start_queue_conn', Mock()).start()
+
+        self.queue = self.start_queue_conn.return_value
+
+        # This object must be patched to allow assert_called_args
+        patch('swift_search.middleware.pika.BasicProperties',
+              return_value='patched').start()
+
+    def tearDown(self):
+        patch.stopall()
+
+    def call_mware(self, req, expect_exception=False):
+        status = [None]
+        headers = [None]
+
+        def start_response(s, h, ei=None):
+            status[0] = s
+            headers[0] = h
+
+        body_iter = self.search_md(req.environ, start_response)
+        body = ''
+        caught_exc = None
+        try:
+            for chunk in body_iter:
+                body += chunk
+        except Exception as exc:
+            if expect_exception:
+                caught_exc = exc
+            else:
+                raise
+
+        headerdict = swob.HeaderKeyDict(headers[0])
+        if expect_exception:
+            return status[0], headerdict, body, caught_exc
+        else:
+            return status[0], headerdict, body
+
+
+class SwiftSearchTestCase(MiddlewareTestCase):
+
+    def setUp(self):
+        super(SwiftSearchTestCase, self).setUp()
+        self.msg = 'message_to_send'
+        patch('swift_search.middleware.SwiftSearch._mk_message',
+              return_value=self.msg).start()
+
+        self.expected_publish = {
+            'body': '"message_to_send"',
+            'exchange': '',
+            'properties': 'patched',
+            'routing_key': 'swift_search'
+        }
+
+        # Mocking _has_optin_header because its
+        # calls a method on swift. We are assuming that the container/account
+        # has the optin header.
+        self.mock_h_o_header = patch(
+            'swift_search.middleware.SwiftSearch._has_optin_header',
+            Mock(return_value=True)).start()
+
+    def tearDown(self):
+        super(SwiftSearchTestCase, self).tearDown()
+        patch.stopall()
+
+    @with_req('/v1/a/c/o', 'PUT')
+    def test_put_request_must_be_published(self, req):
+        """ Tests a valid a request. """
+        self.app.responses = [{'status': '201 Created'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_called_with(**self.expected_publish)
+
+    @with_req('/v1/a/c/o', 'POST')
+    def test_post_request_must_be_published(self, req):
+        """ Tests a valid a request. """
+        self.app.responses = [{'status': '201 Created'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_called_with(**self.expected_publish)
+
+    @with_req('/v1/a/c/o', 'DELETE')
+    def test_delete_request_must_be_published(self, req):
+        """ Tests a valid a request. """
+        self.app.responses = [{'status': '204 No Content'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_called_with(**self.expected_publish)
+
+    @with_req('/v1/a/c/o', 'GET')
+    def test_get_request_must_not_be_published(self, req):
+        """ Tests a valid a request, not allowed method. """
+        self.app.responses = [{'status': '200 OK'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a/c/o', 'HEAD')
+    def test_head_request_must_not_be_published(self, req):
+        """ Tests a valid a request, not allowed method. """
+        self.app.responses = [{'status': '200 OK'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a/c/o', 'OPTIONS')
+    def test_options_request_must_not_be_published(self, req):
+        """ Tests a valid a request, not allowed method. """
+        self.app.responses = [{'status': '200 OK'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a/c', 'PUT')
+    def test_put_container_must_not_be_published(self, req):
+        """ Tests a request to a container. Must not publish to queue! """
+        self.app.responses = [{'status': '200 OK'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a/c', 'POST')
+    def test_post_container_must_not_be_published(self, req):
+        """ Tests a request to a container. Must not publish to queue! """
+        self.app.responses = [{'status': '200 OK'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
+
+    @with_req('/v1/a/c', 'DELETE')
+    def test_delete_container_must_not_be_published(self, req):
+        """ Tests a request to a container. Must not publish to queue! """
+        self.app.responses = [{'status': '204 No Content'}]
+
+        _, _, _ = self.call_mware(req)
+
+        self.queue.basic_publish.assert_not_called()
 
     def test_optin_header_not_found(self):
         pass
@@ -114,6 +270,7 @@ class SwiftSearchTestCase(unittest.TestCase):
 
     def test_failt_to_connect_to_queue_on_publishing(self):
         pass
+
 
 if __name__ == '__main__':
     unittest.main()
