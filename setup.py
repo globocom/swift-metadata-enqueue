@@ -4,7 +4,7 @@ from pip.download import PipSession
 from pip.req import parse_requirements
 from setuptools import setup, find_packages
 
-version = "0.0.2"
+version = "0.0.3"
 
 
 def get_path(*p):
@@ -39,5 +39,7 @@ setup(
     scripts=[],
     entry_points={
         'paste.search_factory': [
-            'swift_search=swift_search.middleware:search_factory'
-        ]})
+            'swift_search=swift_search.middleware:filter_factory'
+        ]
+    }
+)

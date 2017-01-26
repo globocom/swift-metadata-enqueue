@@ -51,6 +51,7 @@ META_OBJECT_PREFIX = 'x-object-meta'
 
 # Object headers allowed to be indexed
 ALLOWED_HEADERS = ['content-type', 'content-length', 'x-project-name']
+ALLOWED_METHODS = ('PUT', 'POST', 'DELETE')
 
 
 def start_queue_conn(conf, logger):
@@ -134,51 +135,24 @@ class SwiftSearch(object):
          :param req
          :returns: True if the request is able to indexing; False otherwise.
         """
+        log_msg = 'SwiftSearch: %s %s not indexable: %s'
 
         # Verify method
-        if req.method not in ('PUT', 'POST', 'DELETE'):
-            self.logger.debug(
-                'SwiftSearch: %s %s not indexable: Invalid method',
-                req.method, req.path_info)
+        if not self._is_valid_method(req):
+            reason = 'Invalid method'
+            self.logger.debug(log_msg, req.method, req.path_info, reason)
             return False
 
-        # Verify uri
-        try:
-            vrs, acc, con, obj = req.split_path(2, 4, rest_with_last=True)
-        except ValueError:
-            # /info or similar...
-            self.logger.debug(
-                'SwiftSearch: %s %s not indexable: Invalid url',
-                req.method, req.path_info)
-            return False
-
-        # Check if it's an account request or a container request
-        if con is None or obj is None:
-            self.logger.debug(
-                'SwiftSearch: %s %s not indexable: Not a object',
-                req.method, req.path_info)
+        # Verify url
+        if not self._is_valid_object_url(req):
+            reason = 'Invalid object URL'
+            self.logger.debug(log_msg, req.method, req.path_info, reason)
             return False
 
         # Verify if container has the meta-search-enabled header
-        sysmeta_c = get_container_info(req.environ, self.app)['meta']
-        enabled = sysmeta_c.get(META_SEARCH_ENABLED)
-
-        if enabled is None:
-
-            # Verify if account has the meta-search-enabled header
-            sysmeta_a = get_account_info(req.environ, self.app)['meta']
-            enabled = sysmeta_a.get(META_SEARCH_ENABLED)
-
-        if not utils.config_true_value(enabled):
-            self.logger.debug(
-                'SwiftSearch: %s %s not indexable: header ``%s`` not found',
-                req.method, req.path_info, META_SEARCH_ENABLED)
-
-            self.logger.debug(
-                'SwiftSearch: Container headers found - {}'.format(sysmeta_c))
-            self.logger.debug(
-                'SwiftSearch: Account headers found - {}'.format(sysmeta_a))
-
+        if not self._has_optin_header(req):
+            reason = 'Header ``%s`` not found' % META_SEARCH_ENABLED
+            self.logger.debug(log_msg, req.method, req.path_info, reason)
             return False
 
         return True
@@ -202,7 +176,7 @@ class SwiftSearch(object):
             # Second try to send to queue
             self.queue = start_queue_conn(self.conf, self.logger)
             if self.queue:
-                result = self._publish(message)            
+                result = self._publish(message)
 
         if result:
             self.logger.info(
@@ -226,7 +200,7 @@ class SwiftSearch(object):
         return headers
 
     def _mk_message(self, req):
-        """ 
+        """
         Creates a dictionary with the information that will be send to the
         queue.
         """
@@ -238,11 +212,46 @@ class SwiftSearch(object):
         }
 
     def _publish(self, message):
+        """ Send message to the queue
+
+        :param message Dictionary with data
+        :returns: True if success; False otherwise.
+        """
         return self.queue.basic_publish(
             exchange='',
             routing_key='swift_search', body=json.dumps(message),
             properties=pika.BasicProperties(delivery_mode=2)
         )
+
+    def _is_valid_method(self, req):
+        """ Return True if the request method is allowed. False otherwise. """
+        return req.method in ALLOWED_METHODS
+
+    def _is_valid_object_url(self, req):
+        """ Return True if it is a object url. False otherwise. """
+        try:
+            vrs, acc, con, obj = req.split_path(2, 4, rest_with_last=True)
+        except ValueError:
+            return False
+
+        # con = None: account URI | obj = None: container URI
+        if con is None or obj is None:
+            return False
+
+        return True
+
+    def _has_optin_header(self, req):
+        """
+        Return True if container or account has the enabling header.
+        False otherwise.
+        """
+        sysmeta_a = get_account_info(req.environ, self.app)['meta']
+        enabled_a = sysmeta_a.get(META_SEARCH_ENABLED)
+
+        sysmeta_c = get_container_info(req.environ, self.app)['meta']
+        enabled_c = sysmeta_c.get(META_SEARCH_ENABLED)
+
+        return utils.config_true_value(enabled_c or enabled_a)
 
 
 def filter_factory(global_conf, **local_conf):
@@ -250,8 +259,14 @@ def filter_factory(global_conf, **local_conf):
     conf = global_conf.copy()
     conf.update(local_conf)
 
+    defaults = {
+        'methods': ALLOWED_METHODS,
+        'indexed_headers': ALLOWED_HEADERS + [META_OBJECT_PREFIX],
+        'enabling_header': 'x-(account|container)-meta-' + META_SEARCH_ENABLED
+    }
+
     # Registers information to be retrieved on /info
-    utils.register_swift_info('swift_search')
+    utils.register_swift_info('swift_search', **defaults)
 
     def filter(app):
         return SwiftSearch(app, conf)
