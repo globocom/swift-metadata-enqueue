@@ -39,3 +39,12 @@ Remove the metadata indexing:
 
 To create an object with indexable metadata:
     swift upload <container> <file> -H "x-object-meta-example:content"
+
+# Testing
+
+    pip install -r requirements_test.txt
+    make tests
+
+# Team
+
+Created by Storm @ Globo.com
