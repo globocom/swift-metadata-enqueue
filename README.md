@@ -1,3 +1,5 @@
+# Swift Search
+
 Middleware for OpenStack Swift that implements indexing for object metadata functionality.
 
 ``swift_search`` is a middleware which sends object metadata to a queue for
