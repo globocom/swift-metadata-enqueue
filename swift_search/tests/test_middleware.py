@@ -289,50 +289,10 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
         self.send_req_to_queue.assert_not_called()
 
 
-# def send_req_to_queue(self, req):
-#         """
-#         Sends a message to the queue with the proper information.
-#         If the fistr try to send fails, try to reconnect to the queue and
-#         try to send it again
-#         """
-#         message = self._mk_message(req)
-#         result = None
-
-#         # First try to send to queue
-#         try:
-#             result = self._publish(self.queue, message)
-
-#         except (pika.exceptions.ConnectionClosed, Exception):
-#             self.logger.exception('SwiftSearch: Exception on sending to queue')
-
-#             # Second try to send to queue
-#             self.queue = start_queue_conn(self.conf, self.logger)
-#             if self.queue:
-#                 result = self._publish(self.queue, message)
-
-#         if result:
-#             self.logger.info(
-#                 'SwiftSearch: %s %s sent to queue',
-#                 req.method, req.path_info)
-#         else:
-#             self.logger.error(
-#                 'SwiftSearch: %s %s failed to send',
-#                 req.method, req.path_info)
-
 class SendToQueueTestCase(unittest.TestCase):
-    """
-
-    """
 
     def setUp(self):
         self.app = md.SwiftSearch(FakeApp(), {})
-
-        # # Mocking connection to queue
-        # patch('swift_search.middleware.start_queue_conn', Mock()).start()
-
-        # # Ignores request validation
-        # patch('swift_search.middleware.SwiftSearch.is_suitable_for_indexing',
-        #       Mock()).start()
 
         patch('swift_search.middleware.SwiftSearch._mk_message',
               Mock(return_value='message')).start()
