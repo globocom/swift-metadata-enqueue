@@ -39,10 +39,10 @@ Remove the metadata indexing:
 To create an object with indexable metadata:
     swift upload <container> <file> -H "x-object-meta-example:content"
 """
-import datetime
 import pika
 import json
 
+from datetime import datetime
 from swift.common import swob, utils
 from swift.proxy.controllers.base import get_account_info, get_container_info
 
@@ -208,14 +208,8 @@ class SwiftSearch(object):
             'uri': req.path_info,
             'http_method': req.method,
             'headers': self._filter_headers(req),
-            'timestamp': self._datetime()
+            'timestamp': datetime.utcnow().isoformat()
         }
-
-    def _datetime(self):
-        """
-        Helper to enable testabilty on _mk_message
-        """
-        return datetime.datetime.utcnow().isoformat()
 
     def _publish(self, queue, message):
         """ Send message to the queue

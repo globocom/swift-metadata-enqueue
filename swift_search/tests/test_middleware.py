@@ -433,12 +433,13 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
 
         self.assertEqual(computed, {})
 
-    def test_mk_message_should_return_the_proper_message(self):
+    @patch('swift_search.middleware.datetime')
+    def test_mk_message_should_return_the_proper_message(self, mock_date):
         patch('swift_search.middleware.SwiftSearch._filter_headers',
               Mock(return_value={'header': 'value'})).start()
 
-        patch('swift_search.middleware.SwiftSearch._datetime',
-              Mock(return_value='2017-02-02T16:53:33.355817')).start()
+        utcnow = mock_date.utcnow.return_value
+        utcnow.isoformat.return_value = '2017-02-02T16:53:33.355817'
 
         req = swob.Request.blank(
             '/v1/a/c/o',
@@ -508,16 +509,23 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
 
         self.assertTrue(computed)
 
-    def test_is_valid_object_url_should_return_true_for_container_url(self):
+    def test_is_valid_object_url_should_return_false_for_container_url(self):
         """ Testing container url """
         req = swob.Request.blank('/v1/a/c')
         computed = self.app._is_valid_object_url(req)
 
         self.assertFalse(computed)
 
-    def test_is_valid_object_url_should_return_true_for_account_url(self):
+    def test_is_valid_object_url_should_return_false_for_account_url(self):
         """ Testing account url """
         req = swob.Request.blank('/v1/a')
+        computed = self.app._is_valid_object_url(req)
+
+        self.assertFalse(computed)
+
+    def test_is_valid_object_url_should_return_false_for_invalid_url(self):
+        """ Testing /info url """
+        req = swob.Request.blank('/info')
         computed = self.app._is_valid_object_url(req)
 
         self.assertFalse(computed)
@@ -567,7 +575,3 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
         computed = self.app._has_optin_header(req)
 
         self.assertFalse(computed)
-
-
-if __name__ == '__main__':
-    unittest.main()
