@@ -1,5 +1,7 @@
 # Swift Search
 
+[![Build Status](https://travis-ci.org/globocom/swift_search.svg?branch=master)](https://travis-ci.org/globocom/swift_search)
+
 Middleware for OpenStack Swift that implements indexing for object metadata functionality.
 
 ``swift_search`` is a middleware which sends object metadata to a queue for
