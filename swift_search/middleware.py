@@ -115,12 +115,11 @@ class SwiftSearch(object):
         self.queue = self.queue or start_queue_conn(self.conf, self.logger)
 
         if self.queue:
-            self.send_req_to_queue(req)
+            self.send_req_to_queue(self.queue, req)
         else:
             self.logger.error(
                 'SwiftSearch: Fail to connect to queue, skiping %s %s' %
-                req.method,
-                req.path_info)
+                (req.method, req.path_info))
 
         return self.app
 
@@ -157,7 +156,7 @@ class SwiftSearch(object):
 
         return True
 
-    def send_req_to_queue(self, req):
+    def send_req_to_queue(self, queue, req):
         """
         Sends a message to the queue with the proper information.
         If the fistr try to send fails, try to reconnect to the queue and
@@ -168,15 +167,16 @@ class SwiftSearch(object):
 
         # First try to send to queue
         try:
-            result = self._publish(message)
+            result = self._publish(queue, message)
 
         except (pika.exceptions.ConnectionClosed, Exception):
             self.logger.exception('SwiftSearch: Exception on sending to queue')
 
             # Second try to send to queue
+            # Update the queue property
             self.queue = start_queue_conn(self.conf, self.logger)
             if self.queue:
-                result = self._publish(message)
+                result = self._publish(self.queue, message)
 
         if result:
             self.logger.info(
@@ -208,16 +208,23 @@ class SwiftSearch(object):
             'uri': req.path_info,
             'http_method': req.method,
             'headers': self._filter_headers(req),
-            'timestamp': datetime.datetime.utcnow().isoformat()
+            'timestamp': self._datetime()
         }
 
-    def _publish(self, message):
+    def _datetime(self):
+        """
+        Helper to enable testabilty on _mk_message
+        """
+        return datetime.datetime.utcnow().isoformat()
+
+    def _publish(self, queue, message):
         """ Send message to the queue
 
+        :param queue pika Queue instance
         :param message Dictionary with data
         :returns: True if success; False otherwise.
         """
-        return self.queue.basic_publish(
+        return queue.basic_publish(
             exchange='',
             routing_key='swift_search', body=json.dumps(message),
             properties=pika.BasicProperties(delivery_mode=2)
