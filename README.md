@@ -1,4 +1,4 @@
-# Swift Search
+# Swift Metadata Indexer
 
 [![Build Status](https://travis-ci.org/globocom/swift_metadata_indexer.svg?branch=master)](https://travis-ci.org/globocom/swift_metadata_indexer)
 
