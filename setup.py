@@ -37,7 +37,7 @@ setup(
     ],
     scripts=[],
     entry_points={
-        'paste.search_factory': [
+        'paste.filter_factory': [
             ('swift_metadata_indexer=swift_metadata_indexer.middleware:'
              'filter_factory')
         ]
