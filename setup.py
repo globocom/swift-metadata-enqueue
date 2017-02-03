@@ -4,7 +4,7 @@ from pip.download import PipSession
 from pip.req import parse_requirements
 from setuptools import setup, find_packages
 
-version = '0.0.3a'
+version = '0.0.4'
 
 
 def get_path(*p):
@@ -16,13 +16,13 @@ install_reqs = parse_requirements(get_path('requirements.txt'),
 reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
-    name="swift_search",
+    name="swift_metadata_indexer",
     version=version,
     description='Swift Search Middleware',
     license='Apache License (2.0)',
     author='Storm Team Globo.com',
     author_email='storm@corp.globo.com',
-    url='https://git@github.com:globocom/swift_search.git',
+    url='https://git@github.com:globocom/swift_metadata_indexer.git',
     packages=find_packages(),
     install_requires=reqs,
     include_package_data=True,
@@ -33,13 +33,13 @@ setup(
         'Environment :: No Input/Output (Daemon)',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
     ],
     scripts=[],
     entry_points={
         'paste.search_factory': [
-            'swift_search=swift_search.middleware:filter_factory'
+            ('swift_metadata_indexer=swift_metadata_indexer.middleware:'
+             'filter_factory')
         ]
     }
 )
