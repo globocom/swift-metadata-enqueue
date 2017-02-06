@@ -128,6 +128,7 @@ class Queuer(object):
         """
         Wheter the request is suitable for indexing. Conditions:
 
+         * Authorized
          * Method: PUT, POST or DELETE
          * Object request
          * Account or Container must have ``queuer-enabled`` meta set to True
@@ -136,6 +137,13 @@ class Queuer(object):
          :returns: True if the request is able to indexing; False otherwise.
         """
         log_msg = 'Queuer: %s %s not indexable: %s'
+
+        # Authorized
+        if 'swift.authorize' in req.environ:
+            if req.environ['swift.authorize'](req):
+                reason = 'Not authorized'
+                self.logger.debug(log_msg, req.method, req.path_info, reason)
+                return False
 
         # Verify method
         if not self._is_valid_method(req):

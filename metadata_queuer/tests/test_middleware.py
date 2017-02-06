@@ -289,6 +289,19 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
+    @patch('metadata_queuer.middleware.Queuer._has_optin_header')
+    def test_request_is_unauthorized(self, mock):
+        mock.return_value = True
+
+        swob.Request.blank(
+            '/v1/a/c/o',
+            environ={
+                'REQUEST_METHOD': 'PUT',
+                'swift.authorize': lambda req: 'Not-None'
+            }).get_response(self.app)
+
+        self.send_req_to_queue.assert_not_called()
+
 
 class SendToQueueTestCase(unittest.TestCase):
 
