@@ -7,9 +7,9 @@ Middleware for OpenStack Swift that implements indexing for object metadata func
 ``metadata_queuer`` is a middleware which sends object metadata to a queue for
 post-indexing in order to enable metadata based search.
 
-``metadata_queuer`` uses the ``x-(account|container)-meta-search-enabled``
+``metadata_queuer`` uses the ``x-(account|container)-meta-queuer-enabled``
 metadata entry to verify if the object is suitable for search index. Nothing
-will be done if ``x-(account|container)-meta-search-enabled`` is not set.
+will be done if ``x-(account|container)-meta-queuer-enabled`` is not set.
 
 ``metadata_queuer`` exports all meta headers (x-object-meta-), content-type and
 content-length headers.
@@ -31,15 +31,15 @@ For example:
 
 To enable the metadata indexing on an account level:
 
-    swift post -m search-enabled:True
+    swift post -m queuer-enabled:True
 
 To enable the metadata indexing on an container level:
 
-    swift post container -m search-enabled:True
+    swift post container -m queuer-enabled:True
 
 Remove the metadata indexing:
 
-    swift post -m search-enabled:
+    swift post -m queuer-enabled:
 
 To create an object with indexable metadata:
     swift upload <container> <file> -H "x-object-meta-example:content"
