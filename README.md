@@ -1,4 +1,4 @@
-# Swift Metadata Indexer
+# Swift Metadata Queuer
 
 [![Build Status](https://travis-ci.org/globocom/swift_metadata_queuer.svg?branch=master)](https://travis-ci.org/globocom/swift_metadata_queuer)
 
