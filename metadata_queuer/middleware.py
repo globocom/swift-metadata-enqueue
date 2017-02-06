@@ -99,8 +99,7 @@ class Queuer(object):
     """
 
     def __init__(self, app, conf):
-        self.logger = utils.get_logger(conf,
-                                       log_route='swift-metadata-indexer')
+        self.logger = utils.get_logger(conf, log_route='metadata-indexer')
 
         self.app = app
         self.conf = conf
