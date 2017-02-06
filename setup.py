@@ -16,7 +16,7 @@ install_reqs = parse_requirements(get_path('requirements.txt'),
 reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
-    name="metadata_queuer",
+    name="swift_metadata_queuer",
     version=version,
     description='Swift Search Middleware',
     license='Apache License (2.0)',

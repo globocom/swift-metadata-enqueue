@@ -47,7 +47,7 @@ from datetime import datetime
 from swift.common import swob, utils
 from swift.proxy.controllers.base import get_account_info, get_container_info
 
-META_SEARCH_ENABLED = 'indexer-enabled'
+META_SEARCH_ENABLED = 'queuer-enabled'
 META_OBJECT_PREFIX = 'x-object-meta'
 
 # Object headers allowed to be indexed
@@ -76,23 +76,23 @@ def start_queue_conn(conf, logger):
 
     try:
         connection = pika.BlockingConnection(params)
-        logger.debug('SwiftSearch: Connection Queue connection OK')
+        logger.debug('Queuer: Connection Queue connection OK')
     except (pika.exceptions.ConnectionClosed, Exception):
-        logger.error('SwiftSearch: Fail to connect to RabbitMQ')
+        logger.error('Queuer: Fail to connect to RabbitMQ')
         return None
 
     try:
         channel = connection.channel()
         channel.queue_declare(queue='swift_search', durable=True)
-        logger.debug('SwiftSearch: Queue Channel OK')
+        logger.debug('Queuer: Queue Channel OK')
     except (pika.exceptions.ConnectionClosed, Exception):
-        logger.exception('SwiftSearch: Fail to create channel')
+        logger.exception('Queuer: Fail to create channel')
         channel = None
 
     return channel
 
 
-class SwiftSearch(object):
+class Queuer(object):
     """
     Swift search middleware
     See above for a full description.
@@ -120,7 +120,7 @@ class SwiftSearch(object):
             self.send_req_to_queue(self.queue, req)
         else:
             self.logger.error(
-                'SwiftSearch: Fail to connect to queue, skiping %s %s' %
+                'Queuer: Fail to connect to queue, skiping %s %s' %
                 (req.method, req.path_info))
 
         return self.app
@@ -136,7 +136,7 @@ class SwiftSearch(object):
          :param req
          :returns: True if the request is able to indexing; False otherwise.
         """
-        log_msg = 'SwiftSearch: %s %s not indexable: %s'
+        log_msg = 'Queuer: %s %s not indexable: %s'
 
         # Verify method
         if not self._is_valid_method(req):
@@ -172,7 +172,7 @@ class SwiftSearch(object):
             result = self._publish(queue, message)
 
         except (pika.exceptions.ConnectionClosed, Exception):
-            self.logger.exception('SwiftSearch: Exception on sending to queue')
+            self.logger.exception('Queuer: Exception on sending to queue')
 
             # Second try to send to queue
             # Update the queue property
@@ -182,11 +182,11 @@ class SwiftSearch(object):
 
         if result:
             self.logger.info(
-                'SwiftSearch: %s %s sent to queue',
+                'Queuer: %s %s sent to queue',
                 req.method, req.path_info)
         else:
             self.logger.error(
-                'SwiftSearch: %s %s failed to send',
+                'Queuer: %s %s failed to send',
                 req.method, req.path_info)
 
     def _filter_headers(self, req):
@@ -272,6 +272,6 @@ def filter_factory(global_conf, **local_conf):
     utils.register_swift_info('metadata_queuer', **defaults)
 
     def filter(app):
-        return SwiftSearch(app, conf)
+        return Queuer(app, conf)
 
     return filter
