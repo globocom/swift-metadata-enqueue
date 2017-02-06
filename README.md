@@ -1,28 +1,28 @@
 # Swift Metadata Indexer
 
-[![Build Status](https://travis-ci.org/globocom/swift_search.svg?branch=master)](https://travis-ci.org/globocom/swift_search)
+[![Build Status](https://travis-ci.org/globocom/swift_metadata_queuer.svg?branch=master)](https://travis-ci.org/globocom/swift_metadata_queuer)
 
 Middleware for OpenStack Swift that implements indexing for object metadata functionality.
 
-``swift_metadata_indexer`` is a middleware which sends object metadata to a queue for
+``metadata_queuer`` is a middleware which sends object metadata to a queue for
 post-indexing in order to enable metadata based search.
 
-``swift_metadata_indexer`` uses the ``x-(account|container)-meta-search-enabled``
+``metadata_queuer`` uses the ``x-(account|container)-meta-search-enabled``
 metadata entry to verify if the object is suitable for search index. Nothing
 will be done if ``x-(account|container)-meta-search-enabled`` is not set.
 
-``swift_metadata_indexer`` exports all meta headers (x-object-meta-), content-type and
+``metadata_queuer`` exports all meta headers (x-object-meta-), content-type and
 content-length headers.
 
-The ``swift_metadata_indexer`` middleware should be added to the pipeline in your
+The ``metadata_queuer`` middleware should be added to the pipeline in your
 ``/etc/swift/proxy-server.conf`` file just after any auth middleware.
 For example:
 
     [pipeline:main]
-    pipeline = catch_errors cache tempauth swift_metadata_indexer proxy-server
+    pipeline = catch_errors cache tempauth metadata_queuer proxy-server
 
-    [filter:swift_metadata_indexer]
-    use = egg:swift#swift_metadata_indexer
+    [filter:metadata_queuer]
+    use = egg:swift#metadata_queuer
     queue_username
     queue_password
     queue_url

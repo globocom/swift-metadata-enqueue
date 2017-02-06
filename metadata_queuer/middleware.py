@@ -1,24 +1,24 @@
 """
-``swift_metadata_indexer`` is a middleware which sends object metadata to a
+``metadata_queuer`` is a middleware which sends object metadata to a
 queue for post-indexing in order to enable metadata based search.
 
-``swift_metadata_indexer`` uses the
+``metadata_queuer`` uses the
 ``x-(account|container)-meta-indexer-enabled``
 metadata entry to verify if the object is suitable for search index. Nothing
 will be done if ``x-(account|container)-meta-search-enabled`` is not set.
 
-``swift_metadata_indexer`` exports all meta headers (x-object-meta-),
+``metadata_queuer`` exports all meta headers (x-object-meta-),
 content-type and content-length headers.
 
-The ``swift_metadata_indexer`` middleware should be added to the pipeline in
+The ``metadata_queuer`` middleware should be added to the pipeline in
 your ``/etc/swift/proxy-server.conf`` file just after any auth middleware.
 For example:
 
     [pipeline:main]
-    pipeline = catch_errors cache tempauth swift_metadata_indexer proxy-server
+    pipeline = catch_errors cache tempauth metadata_queuer proxy-server
 
-    [filter:swift_metadata_indexer]
-    use = egg:swift#swift_metadata_indexer
+    [filter:metadata_queuer]
+    use = egg:swift#metadata_queuer
     queue_username
     queue_password
     queue_url
@@ -269,7 +269,7 @@ def filter_factory(global_conf, **local_conf):
     }
 
     # Registers information to be retrieved on /info
-    utils.register_swift_info('swift_metadata_indexer', **defaults)
+    utils.register_swift_info('metadata_queuer', **defaults)
 
     def filter(app):
         return SwiftSearch(app, conf)

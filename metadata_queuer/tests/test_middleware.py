@@ -3,7 +3,7 @@ import unittest
 
 from mock import patch, Mock
 from swift.common import swob
-from swift_metadata_indexer import middleware as md
+from metadata_queuer import middleware as md
 
 
 class FakeApp(object):
@@ -44,12 +44,12 @@ class TestSwiftSearchCall(unittest.TestCase):
     def setUp(self):
         self.app = md.SwiftSearch(FakeApp(), {})
         self.send_req_to_queue = patch(
-            'swift_metadata_indexer.middleware.SwiftSearch.send_req_to_queue',
+            'metadata_queuer.middleware.SwiftSearch.send_req_to_queue',
             Mock()).start()
 
     def test_is_suitable_for_indexing_returns_falsy(self):
         """ Send to queue should not be called """
-        patch(('swift_metadata_indexer.middleware.SwiftSearch'
+        patch(('metadata_queuer.middleware.SwiftSearch'
                '.is_suitable_for_indexing'), Mock(return_value=None)).start()
 
         swob.Request.blank('/v1/a/c/o',
@@ -60,10 +60,10 @@ class TestSwiftSearchCall(unittest.TestCase):
 
     def test_start_queue_conn_returns_falsy(self):
         """ Send to queue should not be called """
-        patch(('swift_metadata_indexer.middleware.SwiftSearch'
+        patch(('metadata_queuer.middleware.SwiftSearch'
                '.is_suitable_for_indexing'), Mock(return_value=True)).start()
 
-        patch('swift_metadata_indexer.middleware.start_queue_conn',
+        patch('metadata_queuer.middleware.start_queue_conn',
               Mock(return_value=None)).start()
 
         swob.Request.blank('/v1/a/c/o',
@@ -93,7 +93,7 @@ class StartQueueTestCase(unittest.TestCase):
         }
 
         self.logger = Mock()
-        self.pika = patch('swift_metadata_indexer.middleware.pika',
+        self.pika = patch('metadata_queuer.middleware.pika',
                           Mock()).start()
 
     def tearDown(self):
@@ -171,17 +171,17 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
         self.app = md.SwiftSearch(FakeApp(), {})
 
         self.send_req_to_queue = patch(
-            'swift_metadata_indexer.middleware.SwiftSearch.send_req_to_queue',
+            'metadata_queuer.middleware.SwiftSearch.send_req_to_queue',
             Mock()).start()
 
         # Mocking interactions with queue
-        patch('swift_metadata_indexer.middleware.start_queue_conn',
+        patch('metadata_queuer.middleware.start_queue_conn',
               Mock()).start()
 
     def tearDown(self):
         patch.stopall()
 
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._has_optin_header')
+    @patch('metadata_queuer.middleware.SwiftSearch._has_optin_header')
     def test_allowed_method_request_must_be_published(self, mock):
         mock.return_value = True
 
@@ -195,7 +195,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.assertEqual(computed, expected)
 
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._has_optin_header')
+    @patch('metadata_queuer.middleware.SwiftSearch._has_optin_header')
     def test_NOT_allowed_method_request_must_NOT_be_published(self, mock):
         mock.return_value = True
 
@@ -206,7 +206,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._has_optin_header')
+    @patch('metadata_queuer.middleware.SwiftSearch._has_optin_header')
     def test_valid_object_url_request_must_be_published(self, mock):
         mock.return_value = True
 
@@ -216,7 +216,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_called()
 
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._has_optin_header')
+    @patch('metadata_queuer.middleware.SwiftSearch._has_optin_header')
     def test_container_url_request_must_NOT_be_published(self, mock):
         mock.return_value = True
 
@@ -226,7 +226,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._has_optin_header')
+    @patch('metadata_queuer.middleware.SwiftSearch._has_optin_header')
     def test_account_url_request_must_NOT_be_published(self, mock):
         mock.return_value = True
 
@@ -236,7 +236,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('swift_metadata_indexer.middleware.get_container_info')
+    @patch('metadata_queuer.middleware.get_container_info')
     def test_container_has_optin_header_must_be_published_(self, mock):
 
         mock.return_value = {'meta': {md.META_SEARCH_ENABLED: 'True'}}
@@ -247,7 +247,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_called()
 
-    @patch('swift_metadata_indexer.middleware.get_account_info')
+    @patch('metadata_queuer.middleware.get_account_info')
     def test_account_has_optin_header_must_be_published_(self, mock):
 
         mock.return_value = {'meta': {md.META_SEARCH_ENABLED: 'True'}}
@@ -258,7 +258,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_called()
 
-    @patch('swift_metadata_indexer.middleware.get_container_info')
+    @patch('metadata_queuer.middleware.get_container_info')
     def test_container_has_falsy_optin_header_must_NOT_be_published(
             self, mock):
 
@@ -270,7 +270,7 @@ class SwiftSearchValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('swift_metadata_indexer.middleware.get_account_info')
+    @patch('metadata_queuer.middleware.get_account_info')
     def test_account_has_falsy_optin_header_must_NOT_be_published(
             self, mock):
 
@@ -297,13 +297,13 @@ class SendToQueueTestCase(unittest.TestCase):
     def setUp(self):
         self.app = md.SwiftSearch(FakeApp(), {})
 
-        patch('swift_metadata_indexer.middleware.SwiftSearch._mk_message',
+        patch('metadata_queuer.middleware.SwiftSearch._mk_message',
               Mock(return_value='message')).start()
 
     def tearDown(self):
         patch.stopall()
 
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._publish')
+    @patch('metadata_queuer.middleware.SwiftSearch._publish')
     def test_publish_works_on_first_try(self, mock_publish):
 
         req = swob.Request.blank('/v1/a/c/o')
@@ -311,8 +311,8 @@ class SendToQueueTestCase(unittest.TestCase):
 
         mock_publish.called_once_with('queue', 'message')
 
-    @patch('swift_metadata_indexer.middleware.start_queue_conn')
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._publish')
+    @patch('metadata_queuer.middleware.start_queue_conn')
+    @patch('metadata_queuer.middleware.SwiftSearch._publish')
     def test_publish_works_on_second_try(self, mock_pub, mock_start_q):
 
         mock_start_q.return_value = 'new_queue'
@@ -323,8 +323,8 @@ class SendToQueueTestCase(unittest.TestCase):
 
         mock_pub.called_with('new_queue', 'message')
 
-    @patch('swift_metadata_indexer.middleware.start_queue_conn')
-    @patch('swift_metadata_indexer.middleware.SwiftSearch._publish')
+    @patch('metadata_queuer.middleware.start_queue_conn')
+    @patch('metadata_queuer.middleware.SwiftSearch._publish')
     def test_publish_fail_to_reconnect_to_queue(self, mock_pub, mock_start_q):
         """
         Publish fail on first try.
@@ -355,14 +355,14 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
         self.app = md.SwiftSearch(FakeApp(), {})
 
         # Mocking connection to queue
-        patch('swift_metadata_indexer.middleware.start_queue_conn',
+        patch('metadata_queuer.middleware.start_queue_conn',
               Mock()).start()
 
         # Ignores request validation
-        patch(('swift_metadata_indexer.middleware.SwiftSearch'
+        patch(('metadata_queuer.middleware.SwiftSearch'
                '.is_suitable_for_indexing'), Mock(return_value=True)).start()
 
-        patch(('swift_metadata_indexer.middleware.SwiftSearch'
+        patch(('metadata_queuer.middleware.SwiftSearch'
                '.send_req_to_queue'), Mock()).start()
 
     def tearDown(self):
@@ -397,9 +397,9 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
 
         self.assertEqual(computed, {})
 
-    @patch('swift_metadata_indexer.middleware.datetime')
+    @patch('metadata_queuer.middleware.datetime')
     def test_mk_message_should_return_the_proper_message(self, mock_date):
-        patch('swift_metadata_indexer.middleware.SwiftSearch._filter_headers',
+        patch('metadata_queuer.middleware.SwiftSearch._filter_headers',
               Mock(return_value={'header': 'value'})).start()
 
         utcnow = mock_date.utcnow.return_value
@@ -424,7 +424,7 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
     def test_publish_should_call_queue_with_proper_args(self):
 
         # Mock: pika.BasicProperties(delivery_mode=2)
-        patch('swift_metadata_indexer.middleware.pika.BasicProperties',
+        patch('metadata_queuer.middleware.pika.BasicProperties',
               Mock(return_value={})).start()
 
         queue = Mock()
@@ -501,7 +501,7 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
                 md.META_SEARCH_ENABLED: 'True'
             }
         }
-        patch('swift_metadata_indexer.middleware.get_container_info',
+        patch('metadata_queuer.middleware.get_container_info',
               Mock(return_value=mock_return)).start()
 
         req = swob.Request.blank('/v1/a/c/o')
@@ -517,7 +517,7 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
                 md.META_SEARCH_ENABLED: 'True'
             }
         }
-        patch('swift_metadata_indexer.middleware.get_account_info',
+        patch('metadata_queuer.middleware.get_account_info',
               Mock(return_value=mock_return)).start()
 
         req = swob.Request.blank('/v1/a/c/o')
@@ -528,10 +528,10 @@ class SwiftSearchHelpersTestCase(unittest.TestCase):
 
     def test_has_optin_header_should_return_false_if_none_has_header(self):
 
-        patch('swift_metadata_indexer.middleware.get_account_info',
+        patch('metadata_queuer.middleware.get_account_info',
               Mock(return_value={'meta': {}})).start()
 
-        patch('swift_metadata_indexer.middleware.get_container_info',
+        patch('metadata_queuer.middleware.get_container_info',
               Mock(return_value={'meta': {}})).start()
 
         req = swob.Request.blank('/v1/a/c/o')

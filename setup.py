@@ -16,13 +16,13 @@ install_reqs = parse_requirements(get_path('requirements.txt'),
 reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
-    name="swift_metadata_indexer",
+    name="metadata_queuer",
     version=version,
     description='Swift Search Middleware',
     license='Apache License (2.0)',
     author='Storm Team Globo.com',
     author_email='storm@corp.globo.com',
-    url='https://git@github.com:globocom/swift_metadata_indexer.git',
+    url='https://git@github.com:globocom/swift_metadata_queuer.git',
     packages=find_packages(),
     install_requires=reqs,
     include_package_data=True,
@@ -38,7 +38,7 @@ setup(
     scripts=[],
     entry_points={
         'paste.filter_factory': [
-            ('swift_metadata_indexer=swift_metadata_indexer.middleware:'
+            ('metadata_queuer=metadata_queuer.middleware:'
              'filter_factory')
         ]
     }
