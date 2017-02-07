@@ -105,7 +105,6 @@ class Queuer(object):
         self.app = app
         self.conf = conf
         self.channel = None
-        self.queue_name = conf.get('queue_name')
 
     @swob.wsgify
     def __call__(self, req):
@@ -176,10 +175,11 @@ class Queuer(object):
         """
         message = self._mk_message(req)
         result = None
+        queue_name = self.conf.get('queue_name')
 
         # First try to send to channel
         try:
-            result = self._publish(channel, self.queue_name, message)
+            result = self._publish(channel, queue_name, message)
 
         except (pika.exceptions.ConnectionClosed, Exception):
             self.logger.exception('Queuer: Exception on sending to queue')
@@ -188,7 +188,7 @@ class Queuer(object):
             # Update the queue property
             self.channel = start_channel_conn(self.conf, self.logger)
             if self.channel:
-                result = self._publish(self.channel, self.queue_name, message)
+                result = self._publish(self.channel, queue_name, message)
 
         if result:
             self.logger.info(
