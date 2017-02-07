@@ -28,6 +28,7 @@ For example:
     queue_url
     queue_port
     queue_vhost
+    queue_name
 
 To enable the metadata indexing on an account level:
 

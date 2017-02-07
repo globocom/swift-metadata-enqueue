@@ -21,6 +21,7 @@ class TestConfigParsing(unittest.TestCase):
             'queue_url': 'host.to.rabbitmq',
             'queue_port': '5672',
             'queue_vhost': 'vhost',
+            'queue_name': 'name',
         })(app)
 
         self.assertEqual(search_md.conf.get('queue_username'), 'user')
@@ -28,6 +29,7 @@ class TestConfigParsing(unittest.TestCase):
         self.assertEqual(search_md.conf.get('queue_url'), 'host.to.rabbitmq')
         self.assertEqual(search_md.conf.get('queue_port'), '5672')
         self.assertEqual(search_md.conf.get('queue_vhost'), 'vhost')
+        self.assertEqual(search_md.conf.get('queue_name'), 'name')
 
 
 class TestQueuerCall(unittest.TestCase):
@@ -58,12 +60,12 @@ class TestQueuerCall(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    def test_start_queue_conn_returns_falsy(self):
+    def test_start_channel_conn_returns_falsy(self):
         """ Send to queue should not be called """
         patch('metadata_queuer.middleware.Queuer.is_suitable_for_indexing',
               Mock(return_value=True)).start()
 
-        patch('metadata_queuer.middleware.start_queue_conn',
+        patch('metadata_queuer.middleware.start_channel_conn',
               Mock(return_value=None)).start()
 
         swob.Request.blank('/v1/a/c/o',
@@ -78,7 +80,7 @@ class TestQueuerCall(unittest.TestCase):
 
 class StartQueueTestCase(unittest.TestCase):
     """
-    Test only start_queue_conn method.
+    Test only start_channel_conn method.
     No side effect on the middleware is tested here
     """
 
@@ -90,6 +92,7 @@ class StartQueueTestCase(unittest.TestCase):
             'queue_url': 'host.to.rabbitmq',
             'queue_port': '5672',
             'queue_vhost': 'vhost',
+            'queue_name': 'name',
         }
 
         self.logger = Mock()
@@ -98,7 +101,7 @@ class StartQueueTestCase(unittest.TestCase):
     def tearDown(self):
         patch.stopall()
 
-    def test_start_queue_conn(self):
+    def test_start_channel_conn(self):
         """
         Happy path.Test all pika methods calls when everything works
         It should return a channel (connection.channel.return_value)
@@ -110,13 +113,13 @@ class StartQueueTestCase(unittest.TestCase):
         connection = self.pika.BlockingConnection.return_value
         channel = connection.channel.return_value
 
-        result = md.start_queue_conn(self.conf, self.logger)
+        result = md.start_channel_conn(self.conf, self.logger)
 
         self.assertEqual(result, channel)
 
         connection.channel.assert_called_once()
         channel.queue_declare.assert_called_with(
-            queue='swift_search',
+            queue='name',
             durable=True)
 
         self.pika.PlainCredentials.assert_called_with('user', 'secret')
@@ -128,30 +131,30 @@ class StartQueueTestCase(unittest.TestCase):
         )
         self.pika.BlockingConnection.assert_called_with('parameters_return')
 
-    def test_start_queue_conn_fail_to_connect(self):
+    def test_start_channel_conn_fail_to_connect(self):
         """ It should return None """
         self.pika.BlockingConnection.side_effect = Exception
 
-        result = md.start_queue_conn(self.conf, self.logger)
+        result = md.start_channel_conn(self.conf, self.logger)
 
         self.assertIsNone(result)
 
-    def test_start_queue_conn_fail_to_create_queue(self):
+    def test_start_channel_conn_fail_to_create_queue(self):
         """ It should return None """
         connection = self.pika.BlockingConnection.return_value
         connection.channel.side_effect = Exception
 
-        result = md.start_queue_conn(self.conf, self.logger)
+        result = md.start_channel_conn(self.conf, self.logger)
 
         self.assertIsNone(result)
 
-    def test_start_queue_conn_fail_to_declare_queue(self):
+    def test_start_channel_conn_fail_to_declare_queue(self):
         """ It should return None """
         connection = self.pika.BlockingConnection.return_value
         channel = connection.channel.return_value
         channel.queue_declare.side_effect = Exception
 
-        result = md.start_queue_conn(self.conf, self.logger)
+        result = md.start_channel_conn(self.conf, self.logger)
 
         self.assertIsNone(result)
 
@@ -174,7 +177,7 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
             Mock()).start()
 
         # Mocking interactions with queue
-        patch('metadata_queuer.middleware.start_queue_conn', Mock()).start()
+        patch('metadata_queuer.middleware.start_channel_conn', Mock()).start()
 
     def tearDown(self):
         patch.stopall()
@@ -322,7 +325,7 @@ class SendToQueueTestCase(unittest.TestCase):
 
         mock_publish.called_once_with('queue', 'message')
 
-    @patch('metadata_queuer.middleware.start_queue_conn')
+    @patch('metadata_queuer.middleware.start_channel_conn')
     @patch('metadata_queuer.middleware.Queuer._publish')
     def test_publish_works_on_second_try(self, mock_pub, mock_start_q):
 
@@ -334,7 +337,7 @@ class SendToQueueTestCase(unittest.TestCase):
 
         mock_pub.called_with('new_queue', 'message')
 
-    @patch('metadata_queuer.middleware.start_queue_conn')
+    @patch('metadata_queuer.middleware.start_channel_conn')
     @patch('metadata_queuer.middleware.Queuer._publish')
     def test_publish_fail_to_reconnect_to_queue(self, mock_pub, mock_start_q):
         """
@@ -366,7 +369,7 @@ class QueuerHelpersTestCase(unittest.TestCase):
         self.app = md.Queuer(FakeApp(), {})
 
         # Mocking connection to queue
-        patch('metadata_queuer.middleware.start_queue_conn', Mock()).start()
+        patch('metadata_queuer.middleware.start_channel_conn', Mock()).start()
 
         # Ignores request validation
         patch('metadata_queuer.middleware.Queuer.is_suitable_for_indexing',
@@ -437,13 +440,13 @@ class QueuerHelpersTestCase(unittest.TestCase):
         patch('metadata_queuer.middleware.pika.BasicProperties',
               Mock(return_value={})).start()
 
-        queue = Mock()
+        channel = Mock()
         message = {'body': 'random text', 'x-container': 'test'}
-        self.app._publish(queue, message)
+        self.app._publish(channel, 'queue-name', message)
 
-        queue.basic_publish.assert_called_with(
+        channel.basic_publish.assert_called_with(
             exchange='',
-            routing_key='swift_search',
+            routing_key='queue-name',
             body=json.dumps(message),
             properties={}
         )

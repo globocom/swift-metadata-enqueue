@@ -24,6 +24,7 @@ For example:
     queue_url
     queue_port
     queue_vhost
+    queue_name
 
 To enable the metadata indexing on an account level:
 
@@ -55,10 +56,10 @@ ALLOWED_HEADERS = ['content-type', 'content-length', 'x-project-name']
 ALLOWED_METHODS = ('PUT', 'POST', 'DELETE')
 
 
-def start_queue_conn(conf, logger):
+def start_channel_conn(conf, logger):
     """
     If there's a queue channel started, return it immediately.
-    Otherwise, trys to connect to the queue and create the channel.
+    Otherwise, trys to connect to the queue, create and returns the channel.
 
     :returns: pika.adapters.blocking_connection.BlockingChannel if success;
               None otherwise.
@@ -83,7 +84,7 @@ def start_queue_conn(conf, logger):
 
     try:
         channel = connection.channel()
-        channel.queue_declare(queue='swift_search', durable=True)
+        channel.queue_declare(queue=conf.get('queue_name'), durable=True)
         logger.debug('Queuer: Queue Channel OK')
     except (pika.exceptions.ConnectionClosed, Exception):
         logger.exception('Queuer: Fail to create channel')
@@ -103,7 +104,8 @@ class Queuer(object):
 
         self.app = app
         self.conf = conf
-        self.queue = None
+        self.channel = None
+        self.queue_name = conf.get('queue_name')
 
     @swob.wsgify
     def __call__(self, req):
@@ -112,11 +114,12 @@ class Queuer(object):
         if not self.is_suitable_for_indexing(req):
             return self.app
 
-        # If queue is None, start connection
-        self.queue = self.queue or start_queue_conn(self.conf, self.logger)
+        # If channel is None, start connection
+        self.channel = self.channel or\
+            start_channel_conn(self.conf, self.logger)
 
-        if self.queue:
-            self.send_req_to_queue(self.queue, req)
+        if self.channel:
+            self.send_req_to_queue(self.channel, req)
         else:
             self.logger.error(
                 'Queuer: Fail to connect to queue, skiping %s %s' %
@@ -165,27 +168,27 @@ class Queuer(object):
 
         return True
 
-    def send_req_to_queue(self, queue, req):
+    def send_req_to_queue(self, channel, req):
         """
-        Sends a message to the queue with the proper information.
-        If the fistr try to send fails, try to reconnect to the queue and
+        Sends a message to the channel with the proper information.
+        If the fistr try to send fails, try to reconnect to the channel and
         try to send it again
         """
         message = self._mk_message(req)
         result = None
 
-        # First try to send to queue
+        # First try to send to channel
         try:
-            result = self._publish(queue, message)
+            result = self._publish(channel, self.queue_name, message)
 
         except (pika.exceptions.ConnectionClosed, Exception):
             self.logger.exception('Queuer: Exception on sending to queue')
 
             # Second try to send to queue
             # Update the queue property
-            self.queue = start_queue_conn(self.conf, self.logger)
-            if self.queue:
-                result = self._publish(self.queue, message)
+            self.channel = start_channel_conn(self.conf, self.logger)
+            if self.channel:
+                result = self._publish(self.channel, self.queue_name, message)
 
         if result:
             self.logger.info(
@@ -220,16 +223,18 @@ class Queuer(object):
             'timestamp': datetime.utcnow().isoformat()
         }
 
-    def _publish(self, queue, message):
+    def _publish(self, channel, queue, message):
         """ Send message to the queue
 
-        :param queue pika Queue instance
+        :param channel pika Channel instance
+        :param queue string Queue name
         :param message Dictionary with data
         :returns: True if success; False otherwise.
         """
-        return queue.basic_publish(
+        return channel.basic_publish(
             exchange='',
-            routing_key='swift_search', body=json.dumps(message),
+            routing_key=queue,
+            body=json.dumps(message),
             properties=pika.BasicProperties(delivery_mode=2)
         )
 
