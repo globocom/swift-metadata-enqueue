@@ -52,7 +52,7 @@ META_SEARCH_ENABLED = 'queuer-enabled'
 META_OBJECT_PREFIX = 'x-object-meta'
 
 # Object headers allowed to be indexed
-ALLOWED_HEADERS = ['content-type', 'content-length', 'x-project-name']
+ALLOWED_HEADERS = ['content-type', 'content-length']
 ALLOWED_METHODS = ('PUT', 'POST', 'DELETE')
 
 

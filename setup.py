@@ -4,7 +4,7 @@ from pip.download import PipSession
 from pip.req import parse_requirements
 from setuptools import setup, find_packages
 
-version = '0.0.6'
+version = '0.0.7'
 
 
 def get_path(*p):
