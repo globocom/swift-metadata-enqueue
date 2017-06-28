@@ -1,28 +1,28 @@
-# Swift Metadata Queuer
+# Swift Metadata Enqueue
 
 [![Build Status](https://travis-ci.org/globocom/swift-metadata-queuer.svg?branch=master)](https://travis-ci.org/globocom/swift-metadata-queuer)
 
 Middleware for OpenStack Swift that implements indexing for object metadata functionality.
 
-``metadata_queuer`` is a middleware which sends object metadata to a queue for
-post-indexing in order to enable metadata based search.
+``metadata_enqueue`` is a middleware which sends object metadata to a
+queue for post-processing.
 
-``metadata_queuer`` uses the ``x-(account|container)-meta-queuer-enabled``
-metadata entry to verify if the object is suitable for search index. Nothing
-will be done if ``x-(account|container)-meta-queuer-enabled`` is not set.
+``metadata_enqueue`` uses the ``x-(account|container)-meta-enqueue``
+metadata entry to verify if the object is suitable for enqueueing. Nothing
+will be done if ``x-(account|container)-meta-enqueue`` is not set.
 
-``metadata_queuer`` exports all meta headers (x-object-meta-), content-type and
+``metadata_enqueue`` exports all meta headers (x-object-meta-), content-type and
 content-length headers.
 
-The ``metadata_queuer`` middleware should be added to the pipeline in your
+The ``metadata_enqueue`` middleware should be added to the pipeline in your
 ``/etc/swift/proxy-server.conf`` file just after any auth middleware.
 For example:
 
     [pipeline:main]
-    pipeline = catch_errors cache tempauth metadata_queuer proxy-server
+    pipeline = catch_errors cache tempauth metadata_enqueue proxy-server
 
-    [filter:metadata_queuer]
-    use = egg:swift#metadata_queuer
+    [filter:metadata_enqueue]
+    use = egg:swift#metadata_enqueue
     queue_username
     queue_password
     queue_url
@@ -32,15 +32,15 @@ For example:
 
 To enable the metadata indexing on an account level:
 
-    swift post -m queuer-enabled:True
+    swift post -m enqueue:True
 
 To enable the metadata indexing on an container level:
 
-    swift post container -m queuer-enabled:True
+    swift post container -m enqueue:True
 
 Remove the metadata indexing:
 
-    swift post -m queuer-enabled:
+    swift post -m enqueue:
 
 To create an object with indexable metadata:
     swift upload <container> <file> -H "x-object-meta-example:content"

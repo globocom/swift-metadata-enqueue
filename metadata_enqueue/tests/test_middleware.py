@@ -3,7 +3,7 @@ import unittest
 
 from mock import patch, Mock
 from swift.common import swob
-from metadata_queuer import middleware as md
+from metadata_enqueue import middleware as md
 
 
 class FakeApp(object):
@@ -15,7 +15,7 @@ class FakeApp(object):
 class TestConfigParsing(unittest.TestCase):
     def test_non_defaults(self):
         app = FakeApp()
-        search_md = md.filter_factory({
+        enqueue_md = md.filter_factory({
             'queue_username': 'user',
             'queue_password': 'secret',
             'queue_url': 'host.to.rabbitmq',
@@ -24,15 +24,15 @@ class TestConfigParsing(unittest.TestCase):
             'queue_name': 'name',
         })(app)
 
-        self.assertEqual(search_md.conf.get('queue_username'), 'user')
-        self.assertEqual(search_md.conf.get('queue_password'), 'secret')
-        self.assertEqual(search_md.conf.get('queue_url'), 'host.to.rabbitmq')
-        self.assertEqual(search_md.conf.get('queue_port'), '5672')
-        self.assertEqual(search_md.conf.get('queue_vhost'), 'vhost')
-        self.assertEqual(search_md.conf.get('queue_name'), 'name')
+        self.assertEqual(enqueue_md.conf.get('queue_username'), 'user')
+        self.assertEqual(enqueue_md.conf.get('queue_password'), 'secret')
+        self.assertEqual(enqueue_md.conf.get('queue_url'), 'host.to.rabbitmq')
+        self.assertEqual(enqueue_md.conf.get('queue_port'), '5672')
+        self.assertEqual(enqueue_md.conf.get('queue_vhost'), 'vhost')
+        self.assertEqual(enqueue_md.conf.get('queue_name'), 'name')
 
 
-class TestQueuerCall(unittest.TestCase):
+class TestEnqueueCall(unittest.TestCase):
     """
     There are two important steps before send to queue:
         - Verify if the request is valid
@@ -44,14 +44,14 @@ class TestQueuerCall(unittest.TestCase):
     """
 
     def setUp(self):
-        self.app = md.Queuer(FakeApp(), {})
+        self.app = md.Enqueue(FakeApp(), {})
         self.send_req_to_queue = patch(
-            'metadata_queuer.middleware.Queuer.send_req_to_queue',
+            'metadata_enqueue.middleware.Enqueue.send_req_to_queue',
             Mock()).start()
 
     def test_is_suitable_for_indexing_returns_falsy(self):
         """ Send to queue should not be called """
-        patch('metadata_queuer.middleware.Queuer.is_suitable_for_indexing',
+        patch('metadata_enqueue.middleware.Enqueue.is_suitable_for_indexing',
               Mock(return_value=None)).start()
 
         swob.Request.blank('/v1/a/c/o',
@@ -62,10 +62,10 @@ class TestQueuerCall(unittest.TestCase):
 
     def test_start_channel_conn_returns_falsy(self):
         """ Send to queue should not be called """
-        patch('metadata_queuer.middleware.Queuer.is_suitable_for_indexing',
+        patch('metadata_enqueue.middleware.Enqueue.is_suitable_for_indexing',
               Mock(return_value=True)).start()
 
-        patch('metadata_queuer.middleware.start_channel_conn',
+        patch('metadata_enqueue.middleware.start_channel_conn',
               Mock(return_value=None)).start()
 
         swob.Request.blank('/v1/a/c/o',
@@ -96,7 +96,7 @@ class StartQueueTestCase(unittest.TestCase):
         }
 
         self.logger = Mock()
-        self.pika = patch('metadata_queuer.middleware.pika', Mock()).start()
+        self.pika = patch('metadata_enqueue.middleware.pika', Mock()).start()
 
     def tearDown(self):
         patch.stopall()
@@ -159,7 +159,7 @@ class StartQueueTestCase(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class QueuerValidateRequesTestCase(unittest.TestCase):
+class EnqueueValidateRequesTestCase(unittest.TestCase):
     """
     These tests intend to verify if the middleware is properly checking if
     the request is suitable or not to be indexed. Everything is mocked,
@@ -170,19 +170,19 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        self.app = md.Queuer(FakeApp(), {})
+        self.app = md.Enqueue(FakeApp(), {})
 
         self.send_req_to_queue = patch(
-            'metadata_queuer.middleware.Queuer.send_req_to_queue',
+            'metadata_enqueue.middleware.Enqueue.send_req_to_queue',
             Mock()).start()
 
         # Mocking interactions with queue
-        patch('metadata_queuer.middleware.start_channel_conn', Mock()).start()
+        patch('metadata_enqueue.middleware.start_channel_conn', Mock()).start()
 
     def tearDown(self):
         patch.stopall()
 
-    @patch('metadata_queuer.middleware.Queuer._has_optin_header')
+    @patch('metadata_enqueue.middleware.Enqueue._has_optin_header')
     def test_allowed_method_request_must_be_published(self, mock):
         mock.return_value = True
 
@@ -196,7 +196,7 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.assertEqual(computed, expected)
 
-    @patch('metadata_queuer.middleware.Queuer._has_optin_header')
+    @patch('metadata_enqueue.middleware.Enqueue._has_optin_header')
     def test_NOT_allowed_method_request_must_NOT_be_published(self, mock):
         mock.return_value = True
 
@@ -207,7 +207,7 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('metadata_queuer.middleware.Queuer._has_optin_header')
+    @patch('metadata_enqueue.middleware.Enqueue._has_optin_header')
     def test_valid_object_url_request_must_be_published(self, mock):
         mock.return_value = True
 
@@ -217,7 +217,7 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_called()
 
-    @patch('metadata_queuer.middleware.Queuer._has_optin_header')
+    @patch('metadata_enqueue.middleware.Enqueue._has_optin_header')
     def test_container_url_request_must_NOT_be_published(self, mock):
         mock.return_value = True
 
@@ -227,7 +227,7 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('metadata_queuer.middleware.Queuer._has_optin_header')
+    @patch('metadata_enqueue.middleware.Enqueue._has_optin_header')
     def test_account_url_request_must_NOT_be_published(self, mock):
         mock.return_value = True
 
@@ -237,10 +237,10 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('metadata_queuer.middleware.get_container_info')
+    @patch('metadata_enqueue.middleware.get_container_info')
     def test_container_has_optin_header_must_be_published_(self, mock):
 
-        mock.return_value = {'meta': {md.META_SEARCH_ENABLED: 'True'}}
+        mock.return_value = {'meta': {md.META_ENQUEUE_ENABLED: 'True'}}
 
         swob.Request.blank('/v1/a/c/o',
                            environ={'REQUEST_METHOD': 'PUT'}
@@ -248,10 +248,10 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_called()
 
-    @patch('metadata_queuer.middleware.get_account_info')
+    @patch('metadata_enqueue.middleware.get_account_info')
     def test_account_has_optin_header_must_be_published_(self, mock):
 
-        mock.return_value = {'meta': {md.META_SEARCH_ENABLED: 'True'}}
+        mock.return_value = {'meta': {md.META_ENQUEUE_ENABLED: 'True'}}
 
         swob.Request.blank('/v1/a/c/o',
                            environ={'REQUEST_METHOD': 'PUT'}
@@ -259,11 +259,11 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_called()
 
-    @patch('metadata_queuer.middleware.get_container_info')
+    @patch('metadata_enqueue.middleware.get_container_info')
     def test_container_has_falsy_optin_header_must_NOT_be_published(
             self, mock):
 
-        mock.return_value = {'meta': {md.META_SEARCH_ENABLED: 'False'}}
+        mock.return_value = {'meta': {md.META_ENQUEUE_ENABLED: 'False'}}
 
         swob.Request.blank('/v1/a/c/o',
                            environ={'REQUEST_METHOD': 'PUT'}
@@ -271,11 +271,11 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('metadata_queuer.middleware.get_account_info')
+    @patch('metadata_enqueue.middleware.get_account_info')
     def test_account_has_falsy_optin_header_must_NOT_be_published(
             self, mock):
 
-        mock.return_value = {'meta': {md.META_SEARCH_ENABLED: 'False'}}
+        mock.return_value = {'meta': {md.META_ENQUEUE_ENABLED: 'False'}}
 
         swob.Request.blank('/v1/a/c/o',
                            environ={'REQUEST_METHOD': 'PUT'}
@@ -292,7 +292,7 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 
         self.send_req_to_queue.assert_not_called()
 
-    @patch('metadata_queuer.middleware.Queuer._has_optin_header')
+    @patch('metadata_enqueue.middleware.Enqueue._has_optin_header')
     def test_request_is_unauthorized(self, mock):
         mock.return_value = True
 
@@ -309,15 +309,15 @@ class QueuerValidateRequesTestCase(unittest.TestCase):
 class SendToQueueTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.app = md.Queuer(FakeApp(), {})
+        self.app = md.Enqueue(FakeApp(), {})
 
-        patch('metadata_queuer.middleware.Queuer._mk_message',
+        patch('metadata_enqueue.middleware.Enqueue._mk_message',
               Mock(return_value='message')).start()
 
     def tearDown(self):
         patch.stopall()
 
-    @patch('metadata_queuer.middleware.Queuer._publish')
+    @patch('metadata_enqueue.middleware.Enqueue._publish')
     def test_publish_works_on_first_try(self, mock_publish):
 
         req = swob.Request.blank('/v1/a/c/o')
@@ -325,8 +325,8 @@ class SendToQueueTestCase(unittest.TestCase):
 
         mock_publish.called_once_with('queue', 'message')
 
-    @patch('metadata_queuer.middleware.start_channel_conn')
-    @patch('metadata_queuer.middleware.Queuer._publish')
+    @patch('metadata_enqueue.middleware.start_channel_conn')
+    @patch('metadata_enqueue.middleware.Enqueue._publish')
     def test_publish_works_on_second_try(self, mock_pub, mock_start_q):
 
         mock_start_q.return_value = 'new_queue'
@@ -337,8 +337,8 @@ class SendToQueueTestCase(unittest.TestCase):
 
         mock_pub.called_with('new_queue', 'message')
 
-    @patch('metadata_queuer.middleware.start_channel_conn')
-    @patch('metadata_queuer.middleware.Queuer._publish')
+    @patch('metadata_enqueue.middleware.start_channel_conn')
+    @patch('metadata_enqueue.middleware.Enqueue._publish')
     def test_publish_fail_to_reconnect_to_queue(self, mock_pub, mock_start_q):
         """
         Publish fail on first try.
@@ -354,7 +354,7 @@ class SendToQueueTestCase(unittest.TestCase):
         mock_pub.assert_called_once()
 
 
-class QueuerHelpersTestCase(unittest.TestCase):
+class EnqueueHelpersTestCase(unittest.TestCase):
     """
     Test helpers methods:
         - _filter_headers
@@ -366,16 +366,16 @@ class QueuerHelpersTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        self.app = md.Queuer(FakeApp(), {})
+        self.app = md.Enqueue(FakeApp(), {})
 
         # Mocking connection to queue
-        patch('metadata_queuer.middleware.start_channel_conn', Mock()).start()
+        patch('metadata_enqueue.middleware.start_channel_conn', Mock()).start()
 
         # Ignores request validation
-        patch('metadata_queuer.middleware.Queuer.is_suitable_for_indexing',
+        patch('metadata_enqueue.middleware.Enqueue.is_suitable_for_indexing',
               Mock(return_value=True)).start()
 
-        patch('metadata_queuer.middleware.Queuer.send_req_to_queue',
+        patch('metadata_enqueue.middleware.Enqueue.send_req_to_queue',
               Mock()).start()
 
     def tearDown(self):
@@ -410,9 +410,9 @@ class QueuerHelpersTestCase(unittest.TestCase):
 
         self.assertEqual(computed, {})
 
-    @patch('metadata_queuer.middleware.datetime')
+    @patch('metadata_enqueue.middleware.datetime')
     def test_mk_message_should_return_the_proper_message(self, mock_date):
-        patch('metadata_queuer.middleware.Queuer._filter_headers',
+        patch('metadata_enqueue.middleware.Enqueue._filter_headers',
               Mock(return_value={'header': 'value'})).start()
 
         utcnow = mock_date.utcnow.return_value
@@ -437,7 +437,7 @@ class QueuerHelpersTestCase(unittest.TestCase):
     def test_publish_should_call_queue_with_proper_args(self):
 
         # Mock: pika.BasicProperties(delivery_mode=2)
-        patch('metadata_queuer.middleware.pika.BasicProperties',
+        patch('metadata_enqueue.middleware.pika.BasicProperties',
               Mock(return_value={})).start()
 
         channel = Mock()
@@ -511,10 +511,10 @@ class QueuerHelpersTestCase(unittest.TestCase):
 
         mock_return = {
             'meta': {
-                md.META_SEARCH_ENABLED: 'True'
+                md.META_ENQUEUE_ENABLED: 'True'
             }
         }
-        patch('metadata_queuer.middleware.get_container_info',
+        patch('metadata_enqueue.middleware.get_container_info',
               Mock(return_value=mock_return)).start()
 
         req = swob.Request.blank('/v1/a/c/o')
@@ -527,10 +527,10 @@ class QueuerHelpersTestCase(unittest.TestCase):
 
         mock_return = {
             'meta': {
-                md.META_SEARCH_ENABLED: 'True'
+                md.META_ENQUEUE_ENABLED: 'True'
             }
         }
-        patch('metadata_queuer.middleware.get_account_info',
+        patch('metadata_enqueue.middleware.get_account_info',
               Mock(return_value=mock_return)).start()
 
         req = swob.Request.blank('/v1/a/c/o')
@@ -541,10 +541,10 @@ class QueuerHelpersTestCase(unittest.TestCase):
 
     def test_has_optin_header_should_return_false_if_none_has_header(self):
 
-        patch('metadata_queuer.middleware.get_account_info',
+        patch('metadata_enqueue.middleware.get_account_info',
               Mock(return_value={'meta': {}})).start()
 
-        patch('metadata_queuer.middleware.get_container_info',
+        patch('metadata_enqueue.middleware.get_container_info',
               Mock(return_value={'meta': {}})).start()
 
         req = swob.Request.blank('/v1/a/c/o')

@@ -1,24 +1,24 @@
 """
-``metadata_queuer`` is a middleware which sends object metadata to a
-queue for post-indexing in order to enable metadata based search.
+``metadata_enqueue`` is a middleware which sends object metadata to a
+queue for post-processing.
 
-``metadata_queuer`` uses the
-``x-(account|container)-meta-indexer-enabled``
-metadata entry to verify if the object is suitable for search index. Nothing
-will be done if ``x-(account|container)-meta-queuer-enabled`` is not set.
+``metadata_enqueue`` uses the
+``x-(account|container)-meta-enqueue``
+metadata entry to verify if the object is suitable for enqueueing. Nothing
+will be done if ``x-(account|container)-meta-enqueue`` is not set.
 
-``metadata_queuer`` exports all meta headers (x-object-meta-),
+``metadata_enqueue`` exports all meta headers (x-object-meta-),
 content-type and content-length headers.
 
-The ``metadata_queuer`` middleware should be added to the pipeline in
+The ``metadata_enqueue`` middleware should be added to the pipeline in
 your ``/etc/swift/proxy-server.conf`` file just after any auth middleware.
 For example:
 
     [pipeline:main]
-    pipeline = catch_errors cache tempauth metadata_queuer proxy-server
+    pipeline = catch_errors cache tempauth metadata_enqueue proxy-server
 
-    [filter:metadata_queuer]
-    use = egg:swift#metadata_queuer
+    [filter:metadata_enqueue]
+    use = egg:swift#metadata_enqueue
     queue_username
     queue_password
     queue_url
@@ -26,17 +26,17 @@ For example:
     queue_vhost
     queue_name
 
-To enable the metadata indexing on an account level:
+To enable the metadata enqueue on an account level:
 
-    swift post -m queuer-enabled:True
+    swift post -m enqueue:True
 
-To enable the metadata indexing on an container level:
+To enable the metadata enqueue on an container level:
 
-    swift post container -m queuer-enabled:True
+    swift post container -m enqueue:True
 
-Remove the metadata indexing:
+Remove the metadata enqueue:
 
-    swift post -m queuer-enabled:
+    swift post -m enqueue:
 
 To create an object with indexable metadata:
     swift upload <container> <file> -H "x-object-meta-example:content"
@@ -48,7 +48,7 @@ from datetime import datetime
 from swift.common import swob, utils
 from swift.proxy.controllers.base import get_account_info, get_container_info
 
-META_SEARCH_ENABLED = 'queuer-enabled'
+META_ENQUEUE_ENABLED = 'enqueue'
 META_OBJECT_PREFIX = 'x-object-meta'
 
 # Object headers allowed to be indexed
@@ -77,25 +77,25 @@ def start_channel_conn(conf, logger):
 
     try:
         connection = pika.BlockingConnection(params)
-        logger.debug('Queuer: Connection Queue connection OK')
+        logger.debug('Enqueue: Connection Queue connection OK')
     except (pika.exceptions.ConnectionClosed, Exception):
-        logger.error('Queuer: Fail to connect to RabbitMQ')
+        logger.error('Enqueue: Fail to connect to RabbitMQ')
         return None
 
     try:
         channel = connection.channel()
         channel.queue_declare(queue=conf.get('queue_name'), durable=True)
-        logger.debug('Queuer: Queue Channel OK')
+        logger.debug('Enqueue: Queue Channel OK')
     except (pika.exceptions.ConnectionClosed, Exception):
-        logger.exception('Queuer: Fail to create channel')
+        logger.exception('Enqueue: Fail to create channel')
         channel = None
 
     return channel
 
 
-class Queuer(object):
+class Enqueue(object):
     """
-    Swift search middleware
+    Swift enqueue middleware
     See above for a full description.
     """
 
@@ -121,7 +121,7 @@ class Queuer(object):
             self.send_req_to_queue(self.channel, req)
         else:
             self.logger.error(
-                'Queuer: Fail to connect to queue, skiping %s %s' %
+                'Enqueue: Fail to connect to queue, skiping %s %s' %
                 (req.method, req.path_info))
 
         return self.app
@@ -133,12 +133,12 @@ class Queuer(object):
          * Authorized
          * Method: PUT, POST or DELETE
          * Object request
-         * Account or Container must have ``queuer-enabled`` meta set to True
+         * Account or Container must have ``enqueue`` meta set to True
 
          :param req
          :returns: True if the request is able to indexing; False otherwise.
         """
-        log_msg = 'Queuer: %s %s not indexable: %s'
+        log_msg = 'Enqueue: %s %s not indexable: %s'
 
         # Authorized
         if 'swift.authorize' in req.environ:
@@ -159,9 +159,9 @@ class Queuer(object):
             self.logger.debug(log_msg, req.method, req.path_info, reason)
             return False
 
-        # Verify if container has the meta-queuer-enabled header
+        # Verify if container has the meta-enqueue header
         if not self._has_optin_header(req):
-            reason = 'Header ``%s`` not found' % META_SEARCH_ENABLED
+            reason = 'Header ``%s`` not found' % META_ENQUEUE_ENABLED
             self.logger.debug(log_msg, req.method, req.path_info, reason)
             return False
 
@@ -182,7 +182,7 @@ class Queuer(object):
             result = self._publish(channel, queue_name, message)
 
         except (pika.exceptions.ConnectionClosed, Exception):
-            self.logger.exception('Queuer: Exception on sending to queue')
+            self.logger.exception('Enqueue: Exception on sending to queue')
 
             # Second try to send to queue
             # Update the queue property
@@ -192,11 +192,11 @@ class Queuer(object):
 
         if result:
             self.logger.info(
-                'Queuer: %s %s sent to queue',
+                'Enqueue: %s %s sent to queue',
                 req.method, req.path_info)
         else:
             self.logger.error(
-                'Queuer: %s %s failed to send',
+                'Enqueue: %s %s failed to send',
                 req.method, req.path_info)
 
     def _filter_headers(self, req):
@@ -245,7 +245,7 @@ class Queuer(object):
     def _is_valid_object_url(self, req):
         """ Return True if it is a object url. False otherwise. """
         try:
-            vrs, acc, con, obj = req.split_path(2, 4, rest_with_last=True)
+            _, _, con, obj = req.split_path(2, 4, rest_with_last=True)
         except ValueError:
             return False
 
@@ -261,10 +261,10 @@ class Queuer(object):
         False otherwise.
         """
         sysmeta_a = get_account_info(req.environ, self.app)['meta']
-        enabled_a = sysmeta_a.get(META_SEARCH_ENABLED)
+        enabled_a = sysmeta_a.get(META_ENQUEUE_ENABLED)
 
         sysmeta_c = get_container_info(req.environ, self.app)['meta']
-        enabled_c = sysmeta_c.get(META_SEARCH_ENABLED)
+        enabled_c = sysmeta_c.get(META_ENQUEUE_ENABLED)
 
         return utils.config_true_value(enabled_c or enabled_a)
 
@@ -277,13 +277,13 @@ def filter_factory(global_conf, **local_conf):
     defaults = {
         'methods': ALLOWED_METHODS,
         'indexed_headers': ALLOWED_HEADERS + [META_OBJECT_PREFIX],
-        'enabling_header': 'x-(account|container)-meta-' + META_SEARCH_ENABLED
+        'enabling_header': 'x-(account|container)-meta-' + META_ENQUEUE_ENABLED
     }
 
     # Registers information to be retrieved on /info
-    utils.register_swift_info('metadata_queuer', **defaults)
+    utils.register_swift_info('metadata_enqueue', **defaults)
 
     def filter(app):
-        return Queuer(app, conf)
+        return Enqueue(app, conf)
 
     return filter
