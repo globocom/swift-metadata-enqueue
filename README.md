@@ -1,8 +1,6 @@
 # Swift Metadata Enqueue
 
-[![Build Status](https://travis-ci.org/globocom/swift-metadata-queuer.svg?branch=master)](https://travis-ci.org/globocom/swift-metadata-queuer)
-
-Middleware for OpenStack Swift that implements indexing for object metadata functionality.
+[![Build Status](https://travis-ci.org/globocom/swift-metadata-enqueue.svg?branch=master)](https://travis-ci.org/globocom/swift-metadata-enqueue)
 
 ``metadata_enqueue`` is a middleware which sends object metadata to a
 queue for post-processing.
@@ -30,25 +28,31 @@ For example:
     queue_vhost
     queue_name
 
-To enable the metadata indexing on an account level:
+To enable the metadata enqueue on an account level:
 
     swift post -m enqueue:True
 
-To enable the metadata indexing on an container level:
+To enable the metadata enqueue on an container level:
 
     swift post container -m enqueue:True
 
-Remove the metadata indexing:
+Remove the metadata enqueue:
 
     swift post -m enqueue:
 
-To create an object with indexable metadata:
+To create an object with metadata suitable for post-processing:
     swift upload <container> <file> -H "x-object-meta-example:content"
 
 # Testing
 
     pip install -r requirements_test.txt
     make tests
+
+# Usage case: indexing objects on Elastic Search
+
+One usage case for ``metadata_enqueue`` is enqueue metada in order to be indexed in a Elastic Search cluster, providing a "Search" feature for Openstack Swift. 
+
+Take a look at [swift-metadata-indexer](https://github.com/globocom/swift-metadata-indexer). :)
 
 # Team
 
